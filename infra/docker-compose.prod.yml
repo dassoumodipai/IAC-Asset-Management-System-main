@@ -1,0 +1,111 @@
+# Single-server production stack: Caddy (HTTPS) -> web (nginx static) and api; worker sends email.
+# Usage and first-run steps: docs/DEPLOY_SINGLE_SERVER.md
+#   docker compose --env-file .env.production -f infra/docker-compose.prod.yml up -d --build
+name: iac-asset-platform-prod
+
+x-api-build: &api-build
+  build: { context: .., dockerfile: infra/Dockerfile, target: api }
+  image: iac-api:prod
+
+x-app-env: &app-env
+  NODE_ENV: production
+  PORT: '3000'
+  APP_ORIGIN: https://${DOMAIN:?Set DOMAIN in .env.production}
+  DATABASE_URL: postgresql://iac_app:${POSTGRES_APP_PASSWORD:?}@db:5432/iac
+  DATABASE_SSL: 'false'
+  TRUST_PROXY_HOPS: '1'
+  PORTAL_NOTICE_VERSION: ${PORTAL_NOTICE_VERSION:-1}
+  TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?}
+  AUTH_MAIL_ENCRYPTION_KEY: ${AUTH_MAIL_ENCRYPTION_KEY:?}
+  CSRF_SECRET: ${CSRF_SECRET:?}
+  SMTP_HOST: ${SMTP_HOST:?}
+  SMTP_PORT: ${SMTP_PORT:-465}
+  SMTP_SECURE: ${SMTP_SECURE:-true}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:?}
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iac_owner
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?}
+      POSTGRES_DB: iac
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
+    volumes:
+      - iac_pg:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U iac_owner -d iac']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: applies pending migrations as the schema owner on every deploy (idempotent, advisory-locked).
+  migrate:
+    <<: *api-build
+    command: ['node', 'apps/api/dist/cli.js', 'migrate']
+    environment:
+      <<: *app-env
+      MIGRATION_DATABASE_URL: postgresql://iac_owner:${POSTGRES_OWNER_PASSWORD:?}@db:5432/iac
+    depends_on:
+      db: { condition: service_healthy }
+    restart: 'no'
+
+  # One-shot: reapplies the restricted runtime grants after migrations.
+  grants:
+    image: postgres:17
+    command: ['psql', '-h', 'db', '-U', 'iac_owner', '-d', 'iac', '-v', 'ON_ERROR_STOP=1', '-f', '/grants.sql']
+    environment:
+      PGPASSWORD: ${POSTGRES_OWNER_PASSWORD:?}
+    volumes:
+      - ./runtime-grants.sql:/grants.sql:ro
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: 'no'
+
+  api:
+    <<: *api-build
+    restart: unless-stopped
+    environment: *app-env
+    depends_on:
+      grants: { condition: service_completed_successfully }
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    <<: *api-build
+    restart: unless-stopped
+    command: ['node', 'apps/api/dist/worker.js']
+    environment: *app-env
+    depends_on:
+      grants: { condition: service_completed_successfully }
+
+  web:
+    build: { context: .., dockerfile: infra/Dockerfile, target: web }
+    image: iac-web:prod
+    restart: unless-stopped
+    depends_on: [api]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      DOMAIN: ${DOMAIN:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+
+volumes:
+  iac_pg:
+  caddy_data:
+  caddy_config:

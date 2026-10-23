@@ -1,0 +1,106 @@
+import 'reflect-metadata';
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { Db } from '../src/db';
+const url = process.env.TEST_DATABASE_URL;
+if (!url || !new URL(url).pathname.endsWith('_test'))
+  throw new Error('Privileges test requires isolated _test DB');
+process.env.DATABASE_URL = url;
+const db = new Db();
+after(async () => db.onModuleDestroy());
+test('runtime role can read application data but cannot erase inventory, mutate evidence or create schema objects', async () => {
+  const grants = await readFile(resolve(__dirname, '../../../infra/runtime-grants.sql'), 'utf8');
+  await db.tx(async (c) => {
+    await c.query(grants);
+    await c.query('SET LOCAL ROLE iac_runtime');
+    await c.query('SELECT id FROM assets LIMIT 1');
+    const code = `GRANT_TEST_${randomUUID()}`;
+    await c.query(
+      "INSERT INTO reference_values(kind,code,label) VALUES('CATEGORY',$1,'Runtime insert') ON CONFLICT(kind,code) DO UPDATE SET label=excluded.label",
+      [code],
+    );
+    await c.query(
+      "UPDATE reference_values SET label='Runtime update' WHERE kind='CATEGORY' AND code=$1",
+      [code],
+    );
+    const [{ id: departmentId }] = (
+      await c.query('INSERT INTO departments(code,name) VALUES($1,$2) RETURNING id', [
+        code,
+        `Runtime department ${code}`,
+      ])
+    ).rows;
+    await c.query('UPDATE departments SET name=$2,version=version+1 WHERE id=$1', [
+      departmentId,
+      `Updated department ${code}`,
+    ]);
+    const [{ id: locationId }] = (
+      await c.query("INSERT INTO locations(code,site) VALUES($1,'Runtime site') RETURNING id", [
+        code,
+      ])
+    ).rows;
+    await c.query("UPDATE locations SET room='Updated room',version=version+1 WHERE id=$1", [
+      locationId,
+    ]);
+    const [{ id: photoUserId }] = (
+      await c.query(
+        "INSERT INTO users(email,display_name) VALUES($1,'Synthetic runtime photo test') RETURNING id",
+        [`runtime-photo-${randomUUID()}@example.test`],
+      )
+    ).rows;
+    const [{ id: photoAssetId }] = (
+      await c.query(
+        `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by)
+         VALUES('IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Synthetic runtime photo asset','Owned','In Store','Good','Low',$1) RETURNING id`,
+        [photoUserId],
+      )
+    ).rows;
+    await c.query(
+      `INSERT INTO asset_photos(asset_id,content,sha256,updated_by)
+       VALUES($1,decode('ffd8ff00','hex'),repeat('0',64),$2)`,
+      [photoAssetId, photoUserId],
+    );
+    await c.query(
+      "UPDATE asset_photos SET content=decode('ffd8ff01','hex'),sha256=repeat('1',64) WHERE asset_id=$1",
+      [photoAssetId],
+    );
+    const [{ size: photoSize }] = (
+      await c.query('SELECT octet_length(content) AS size FROM asset_photos WHERE asset_id=$1', [
+        photoAssetId,
+      ])
+    ).rows;
+    assert.equal(photoSize, 4);
+    const [{ id: transferId }] = (
+      await c.query(
+        `INSERT INTO data_transfers(actor_id,module,source_filename,source_sha256,raw_rows,reason,preview)
+         VALUES($1,'masters:departments','synthetic-runtime.csv',repeat('0',64),'[{"code":"SYNTHETIC"}]','Synthetic runtime permission check','{"valid":true}') RETURNING id`,
+        [photoUserId],
+      )
+    ).rows;
+    await c.query(
+      `UPDATE data_transfers SET state='COMMITTED',committed_at=now(),receipt='{"rowCount":1}' WHERE id=$1`,
+      [transferId],
+    );
+    const [{ state: transferState }] = (
+      await c.query('SELECT state FROM data_transfers WHERE id=$1', [transferId])
+    ).rows;
+    assert.equal(transferState, 'COMMITTED');
+    for (const sql of [
+      'DELETE FROM assets WHERE false',
+      'DELETE FROM data_transfers WHERE false',
+      'DELETE FROM asset_photos WHERE false',
+      'DELETE FROM departments WHERE false',
+      'DELETE FROM locations WHERE false',
+      'DELETE FROM reference_values WHERE false',
+      'UPDATE audit_events SET action=action WHERE false',
+      'DELETE FROM ticket_updates WHERE false',
+      'CREATE TABLE forbidden_test_table(id int)',
+    ]) {
+      await c.query('SAVEPOINT denied');
+      await assert.rejects(c.query(sql), (e: any) => e.code === '42501');
+      await c.query('ROLLBACK TO SAVEPOINT denied');
+    }
+  });
+});

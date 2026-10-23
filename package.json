@@ -1,0 +1,46 @@
+{
+  "name": "iac-asset-platform",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,worker,web \"npm run dev -w @iac/api\" \"npm run worker:dev -w @iac/api\" \"npm run dev -w @iac/web\"",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint apps --ext .ts,.tsx",
+    "test": "npm run test --workspaces --if-present",
+    "test:integration": "node scripts/test-integration.mjs",
+    "test:e2e": "playwright test",
+    "db:migrate": "npm run db:migrate -w @iac/api",
+    "admin:bootstrap": "npm run admin:bootstrap -w @iac/api",
+    "seed:synthetic": "npm run seed:synthetic -w @iac/api",
+    "setup:local": "node scripts/setup-local.mjs",
+    "email:gmail": "npm run email:gmail -w @iac/api --",
+    "infra:up": "docker compose --env-file .env -f infra/compose.local.yml up -d --wait",
+    "infra:stop": "docker compose --env-file .env -f infra/compose.local.yml stop",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css,json,html}\" \"scripts/*.mjs\" \"test/*.ts\" \"*.ts\" \"*.mjs\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,css,json,html}\" \"scripts/*.mjs\" \"test/*.ts\" \"*.ts\" \"*.mjs\""
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.0",
+    "globals": "^16.5.0",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0"
+  }
+}

@@ -1,0 +1,306 @@
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../api';
+import { useAction } from '../hooks';
+import type { Asset } from '../types';
+import { downloadFile } from '../transfer-files';
+import { ErrorNotice, Field, Loading, Panel, displayDate } from './ui';
+
+interface PhotoResponse {
+  dataUrl: string | null;
+  updatedAt: string | null;
+  assetVersion?: number;
+}
+interface PhotoDraft {
+  dataUrl: string;
+  version: number;
+}
+const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 40 * 1024;
+
+async function preparePhoto(file: File): Promise<string> {
+  if (!['image/jpeg', 'image/png'].includes(file.type))
+    throw new Error('Choose a JPEG or PNG image.');
+  if (!file.size || file.size > MAX_SOURCE_BYTES)
+    throw new Error('Choose an image no larger than 10 MiB.');
+  const source = URL.createObjectURL(file);
+  const image = new Image();
+  try {
+    image.src = source;
+    await image.decode().catch(() => {
+      throw new Error('This image could not be opened. Choose another JPEG or PNG.');
+    });
+    if (!image.naturalWidth || !image.naturalHeight)
+      throw new Error('This image has no usable dimensions.');
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image preparation is unavailable in this browser.');
+    const initialScale = Math.min(1, 640 / image.naturalWidth, 480 / image.naturalHeight);
+    for (let step = 0; step < 6; step++) {
+      const scale = initialScale * 0.8 ** step;
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.86, 0.74, 0.62, 0.5, 0.38, 0.26]) {
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        if (!dataUrl.startsWith('data:image/jpeg;base64,'))
+          throw new Error('Image preparation is unavailable in this browser.');
+        if (atob(dataUrl.slice(dataUrl.indexOf(',') + 1)).length <= MAX_PHOTO_BYTES) return dataUrl;
+      }
+    }
+    throw new Error('This image could not fit the photo limit. Choose a simpler image.');
+  } finally {
+    URL.revokeObjectURL(source);
+  }
+}
+
+function GenericLaptop() {
+  return (
+    <svg
+      className="asset-photo-illustration"
+      viewBox="0 0 360 230"
+      role="img"
+      aria-label="Generic laptop illustration"
+    >
+      <ellipse cx="180" cy="205" rx="145" ry="11" fill="#dbe7ef" />
+      <rect x="65" y="27" width="230" height="151" rx="9" fill="#315a78" />
+      <rect x="74" y="37" width="212" height="130" rx="3" fill="#e1eff7" />
+      <path d="M74 140 168 58l118 83v26H74Z" fill="#b6cfdf" />
+      <path d="M74 151 139 96l85 71H74Z" fill="#8dadc4" />
+      <circle cx="180" cy="32" r="2" fill="#9cbbce" />
+      <path d="m65 178-29 22q0 5 9 5h270q9 0 9-5l-29-22Z" fill="#94afc1" />
+      <path d="M150 178h60l8 10h-76Z" fill="#d5e2ea" />
+      <path d="M36 200h288" stroke="#53768e" strokeWidth="3" />
+    </svg>
+  );
+}
+
+export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean }) {
+  const query = useQuery({
+    queryKey: ['asset-photo', asset.id],
+    queryFn: ({ signal }) => api<PhotoResponse>(`/assets/${asset.id}/photo`, { signal }),
+  });
+  const action = useAction<PhotoResponse>();
+  const [draft, setDraft] = useState<PhotoDraft>();
+  const [reason, setReason] = useState('');
+  const [preparing, setPreparing] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const [message, setMessage] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const selection = useRef(0);
+  const saving = useRef(false);
+  const current = useRef({ active: false, version: asset.version });
+  useEffect(() => {
+    current.current.active = true;
+    return () => {
+      current.current.active = false;
+      selection.current++;
+    };
+  }, []);
+  useEffect(() => {
+    current.current.version = asset.version;
+  }, [asset.version]);
+  const busy = preparing || action.isPending;
+  const laptop = /laptop|notebook/i.test(asset.assetType ?? '');
+  const photo = draft?.dataUrl ?? query.data?.dataUrl;
+  const validPhoto = photo && /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(photo);
+
+  function downloadSavedPhoto() {
+    const saved = query.data?.dataUrl;
+    if (!saved || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(saved)) return;
+    try {
+      const bytes = Uint8Array.from(atob(saved.slice(saved.indexOf(',') + 1)), (value) =>
+        value.charCodeAt(0),
+      );
+      downloadFile(`${asset.assetCode}-photo.jpg`, new Blob([bytes], { type: 'image/jpeg' }));
+    } catch {
+      setError(new Error('The saved picture could not be downloaded. Refresh and try again.'));
+    }
+  }
+
+  async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    const generation = ++selection.current;
+    const version = asset.version;
+    setDraft(undefined);
+    setReason('');
+    setMessage('');
+    setError(undefined);
+    action.reset();
+    if (!file) {
+      setPreparing(false);
+      return;
+    }
+    setPreparing(true);
+    try {
+      const dataUrl = await preparePhoto(file);
+      if (!current.current.active || generation !== selection.current) return;
+      if (current.current.version !== version)
+        throw new Error(
+          'This asset changed. Review the latest details and choose the photo again.',
+        );
+      setDraft({ dataUrl, version });
+    } catch (caught) {
+      if (!current.current.active || generation !== selection.current) return;
+      setError(caught);
+      if (fileInput.current) fileInput.current.value = '';
+    } finally {
+      if (current.current.active && generation === selection.current) setPreparing(false);
+    }
+  }
+  async function savePhoto(event: FormEvent) {
+    event.preventDefault();
+    if (!manage || !draft || !reason.trim() || busy || saving.current) return;
+    if (draft.version !== asset.version) {
+      setError(
+        new Error('This asset changed. Review the latest details and choose the photo again.'),
+      );
+      return;
+    }
+    saving.current = true;
+    setError(undefined);
+    setMessage('');
+    try {
+      await action.mutateAsync({
+        path: `/assets/${asset.id}/photo`,
+        method: 'PUT',
+        body: { dataUrl: draft.dataUrl, reason: reason.trim() },
+        version: draft.version,
+      });
+      if (!current.current.active) return;
+      setDraft(undefined);
+      setReason('');
+      setMessage('Asset photo saved.');
+      if (fileInput.current) fileInput.current.value = '';
+    } catch {
+      // useAction exposes the safe API error below and retains the draft for retry.
+    } finally {
+      saving.current = false;
+    }
+  }
+  return (
+    <Panel title="Asset picture" className="asset-photo-panel">
+      <ErrorNotice
+        error={query.error}
+        retry={() => {
+          void query.refetch();
+        }}
+      />
+      {query.isPending ? <Loading label="Loading asset photo..." /> : null}
+      {!query.isPending && !query.error ? (
+        <figure className="asset-photo-figure">
+          <div className="asset-photo-stage">
+            {validPhoto ? (
+              <img
+                src={photo}
+                alt={`${draft ? 'Photo preview' : 'Asset photo'} for ${asset.assetCode}`}
+                className="asset-photo-image"
+              />
+            ) : laptop ? (
+              <GenericLaptop />
+            ) : (
+              <span className="asset-photo-empty" aria-hidden="true">
+                ◇
+              </span>
+            )}
+          </div>
+          <figcaption>
+            {validPhoto ? (
+              draft ? (
+                'Preview, not saved'
+              ) : (
+                'Asset photo'
+              )
+            ) : (
+              <>
+                <strong>No asset photo yet</strong>
+                {laptop ? <span>Generic illustration, not the actual asset</span> : null}
+              </>
+            )}
+          </figcaption>
+          {!draft && query.data?.dataUrl && query.data.updatedAt ? (
+            <p className="muted small-text">Updated {displayDate(query.data.updatedAt)}</p>
+          ) : null}
+        </figure>
+      ) : null}
+      {query.data?.dataUrl && !query.error ? (
+        <button
+          type="button"
+          className="button secondary"
+          onClick={downloadSavedPhoto}
+          disabled={busy}
+        >
+          Download saved picture
+        </button>
+      ) : null}
+      {manage ? (
+        <form className="form-stack subsection" onSubmit={savePhoto}>
+          <Field
+            label="Choose asset photo"
+            htmlFor={`asset-photo-${asset.id}`}
+            hint="JPEG or PNG, up to 10 MiB. Prepared locally to 640 × 480 pixels or smaller; image metadata is removed."
+          >
+            <input
+              ref={fileInput}
+              id={`asset-photo-${asset.id}`}
+              type="file"
+              accept="image/jpeg,image/png"
+              disabled={action.isPending}
+              onChange={(event) => {
+                void choosePhoto(event);
+              }}
+            />
+          </Field>
+          {preparing ? <Loading label="Preparing photo preview..." /> : null}
+          <ErrorNotice error={error ?? action.error} />
+          {draft ? (
+            <>
+              <Field label="Photo change reason" htmlFor={`asset-photo-reason-${asset.id}`}>
+                <textarea
+                  id={`asset-photo-reason-${asset.id}`}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  required
+                  maxLength={1000}
+                  disabled={action.isPending}
+                />
+              </Field>
+              <div className="actions">
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={busy || !reason.trim() || !!query.error}
+                >
+                  {action.isPending ? 'Saving photo...' : 'Save photo'}
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    selection.current++;
+                    setDraft(undefined);
+                    setReason('');
+                    setError(undefined);
+                    action.reset();
+                    if (fileInput.current) fileInput.current.value = '';
+                  }}
+                >
+                  Cancel photo change
+                </button>
+              </div>
+            </>
+          ) : null}
+          {message ? (
+            <p className="notice success" role="status">
+              {message}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
+    </Panel>
+  );
+}

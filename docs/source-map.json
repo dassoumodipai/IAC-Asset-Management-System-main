@@ -1,0 +1,297 @@
+{
+  "preparedOn": "2026-10-18",
+  "sources": [
+    {
+      "filename": "CHANGELOG_IAC_Asset_Register.md",
+      "bytes": 3683,
+      "sha256": "b22bf7e0970f90d9fd8437d500f4b88e0c9a6c09c3eaa04240cf76a802b56d6d"
+    },
+    {
+      "filename": "IAC_Asset_Register_v1.3.xlsx",
+      "bytes": 256876,
+      "sha256": "d41173994ced33564624a52b8c87e69fb4f098e972f6eaf9b436671ad18b6bb9"
+    },
+    {
+      "filename": "PRD_IAC_Asset_Register_v1.4.docx",
+      "bytes": 293873,
+      "sha256": "1de7f3f06a8952a29adffd48559f2fc9ba983141a25f63138b3f918b3cca713d"
+    },
+    {
+      "filename": "TRD_IAC_Asset_Register_v1.4.docx",
+      "bytes": 409505,
+      "sha256": "f7ebb2052530607f7a972e1955041b1626ae734afe957281f208c729a05eba0b"
+    }
+  ],
+  "mapping": [
+    {
+      "column": "A",
+      "sourceHeader": "Asset ID",
+      "destination": "assets.asset_code",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "B",
+      "sourceHeader": "Asset Category",
+      "destination": "assets.category",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "C",
+      "sourceHeader": "Asset Type",
+      "destination": "assets.asset_type",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "D",
+      "sourceHeader": "Asset Description",
+      "destination": "assets.description",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "E",
+      "sourceHeader": "Manufacturer",
+      "destination": "assets.manufacturer",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "F",
+      "sourceHeader": "Model",
+      "destination": "assets.model",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "G",
+      "sourceHeader": "Serial Number",
+      "destination": "assets.serial_number",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "H",
+      "sourceHeader": "Barcode / QR Code",
+      "destination": "assets.barcode",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "I",
+      "sourceHeader": "Configuration Details",
+      "destination": "assets.configuration",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "J",
+      "sourceHeader": "Graphics Details",
+      "destination": "assets.graphics",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "K",
+      "sourceHeader": "Ownership Type",
+      "destination": "assets.ownership_type",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "L",
+      "sourceHeader": "Purchase Date",
+      "destination": "assets.purchase_date",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "M",
+      "sourceHeader": "Invoice Number",
+      "destination": "assets.invoice_number",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "N",
+      "sourceHeader": "Supplier",
+      "destination": "assets.supplier",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "O",
+      "sourceHeader": "Purchase Cost",
+      "destination": "assets.purchase_cost",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "P",
+      "sourceHeader": "Residual Value",
+      "destination": "assets.residual_value",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "Q",
+      "sourceHeader": "Depreciation Method",
+      "destination": "assets.depreciation_method",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "R",
+      "sourceHeader": "Useful Life (Years)",
+      "destination": "assets.useful_life_years",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "S",
+      "sourceHeader": "Annual Depreciation",
+      "destination": "assets.legacy_metadata.annual_depreciation_cache",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "T",
+      "sourceHeader": "Accumulated Depreciation",
+      "destination": "assets.legacy_metadata.accumulated_depreciation_cache",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "U",
+      "sourceHeader": "Net Book Value",
+      "destination": "assets.legacy_metadata.net_book_value_cache",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "V",
+      "sourceHeader": "Department",
+      "destination": "departments -> assets.department_id",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "W",
+      "sourceHeader": "Asset Owner",
+      "destination": "assets.asset_owner",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "X",
+      "sourceHeader": "Old Custodian",
+      "destination": "assets.legacy_metadata.old_custodian",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "Y",
+      "sourceHeader": "Custodian",
+      "destination": "assignments.user_id via approved email mapping",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "Z",
+      "sourceHeader": "Employee ID",
+      "destination": "users.employee_reference (non-key)",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AA",
+      "sourceHeader": "Floor",
+      "destination": "locations.floor -> assets.location_id",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AB",
+      "sourceHeader": "Room / Location",
+      "destination": "locations.site/room -> assets.location_id",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AC",
+      "sourceHeader": "Asset Status",
+      "destination": "assets.status",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AD",
+      "sourceHeader": "Condition",
+      "destination": "assets.condition",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AE",
+      "sourceHeader": "Risk Level",
+      "destination": "assets.risk_level",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AF",
+      "sourceHeader": "Warranty Expiry",
+      "destination": "assets.warranty_expiry",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AG",
+      "sourceHeader": "AMC Expiry",
+      "destination": "assets.amc_expiry and explicit amc_applies",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AH",
+      "sourceHeader": "Insurance Policy No.",
+      "destination": "assets.insurance_policy_number",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AI",
+      "sourceHeader": "Insurance Expiry",
+      "destination": "assets.insurance_expiry",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AJ",
+      "sourceHeader": "Last Audit Date",
+      "destination": "assets.last_audit_date",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AK",
+      "sourceHeader": "Next Audit Date",
+      "destination": "assets.next_audit_date",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AL",
+      "sourceHeader": "Disposal Date",
+      "destination": "assets.disposal_date",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AM",
+      "sourceHeader": "Disposal Method",
+      "destination": "assets.disposal_method",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AN",
+      "sourceHeader": "Data Wipe Required",
+      "destination": "assets.data_wipe_required",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AO",
+      "sourceHeader": "Remarks",
+      "destination": "assets.remarks",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AP",
+      "sourceHeader": "Comment Type",
+      "destination": "assets.comment_type",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AQ",
+      "sourceHeader": "Custodian Login ID",
+      "destination": "identity resolution: validated email",
+      "rawValuePreserved": true
+    },
+    {
+      "column": "AR",
+      "sourceHeader": "Custodian Login ID (Manual)",
+      "destination": "identity resolution: manual override first",
+      "rawValuePreserved": true
+    }
+  ],
+  "notes": [
+    "All original fields preserved in restricted import_rows.raw_fields; mapping does not authorize accounts.",
+    "S/T/U are dated legacy caches, not new financial calculations.",
+    "AMC must not inherit Warranty Expiry.",
+    "All supporting sheets remain in immutable source archive; broader workflow migration deferred."
+  ]
+}

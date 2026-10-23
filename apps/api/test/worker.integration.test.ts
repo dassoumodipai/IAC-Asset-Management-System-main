@@ -1,0 +1,70 @@
+import 'reflect-metadata';
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { Db } from '../src/db';
+import { dispatchOnce } from '../src/worker';
+const connection = process.env.TEST_DATABASE_URL;
+if (!connection || !new URL(connection).pathname.endsWith('_test'))
+  throw new Error('Worker tests require isolated TEST_DATABASE_URL ending _test');
+process.env.DATABASE_URL = connection;
+const db = new Db();
+after(async () => db.onModuleDestroy());
+async function delivery() {
+  const key = `worker-test-${randomUUID()}`;
+  await db.tx((c) =>
+    db.notify(c, key, 'TEST', [`${key}@example.org`], {
+      subject: 'Synthetic worker test',
+      text: 'Local Mailpit only.',
+    }),
+  );
+  const [row] = await db.query(
+    'SELECT d.* FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
+    [key],
+  );
+  await db.query("UPDATE email_deliveries SET next_attempt_at='2000-01-01' WHERE id=$1", [row.id]);
+  return row;
+}
+test('SMTP worker accepts local mail and records the sent Message-ID', async () => {
+  const row = await delivery();
+  await dispatchOnce(db);
+  const [sent] = await db.query('SELECT * FROM email_deliveries WHERE id=$1', [row.id]);
+  assert.equal(sent.state, 'ACCEPTED');
+  assert.ok(sent.provider_message_id.includes(row.id));
+  assert.equal(
+    (await db.query('SELECT result_code FROM email_attempts WHERE delivery_id=$1', [row.id]))[0]
+      .result_code,
+    'SMTP_ACCEPTED',
+  );
+});
+test('expired worker lease is reclaimed without creating another delivery', async () => {
+  const row = await delivery();
+  await db.query(
+    "UPDATE email_deliveries SET state='LEASED',attempts=1,leased_until=now()-interval '1 minute',lease_token=$2 WHERE id=$1",
+    [row.id, randomUUID()],
+  );
+  await dispatchOnce(db);
+  const [sent] = await db.query('SELECT * FROM email_deliveries WHERE id=$1', [row.id]);
+  assert.equal(sent.state, 'ACCEPTED');
+  assert.equal(sent.attempts, 2);
+  assert.equal(sent.lease_token, null);
+});
+test('SMTP outage leaves durable pending retry and recovers', async () => {
+  const row = await delivery();
+  const old = process.env.SMTP_PORT;
+  process.env.SMTP_PORT = '1';
+  try {
+    await dispatchOnce(db);
+  } finally {
+    process.env.SMTP_PORT = old;
+  }
+  let [state] = await db.query('SELECT * FROM email_deliveries WHERE id=$1', [row.id]);
+  assert.equal(state.state, 'PENDING');
+  assert.equal(state.attempts, 1);
+  assert.ok(new Date(state.next_attempt_at) > new Date());
+  await db.query("UPDATE email_deliveries SET next_attempt_at='2000-01-01' WHERE id=$1", [row.id]);
+  await dispatchOnce(db);
+  [state] = await db.query('SELECT * FROM email_deliveries WHERE id=$1', [row.id]);
+  assert.equal(state.state, 'ACCEPTED');
+  assert.equal(state.attempts, 2);
+});

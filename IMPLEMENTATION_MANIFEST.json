@@ -1,0 +1,476 @@
+{
+  "preparedOn": "2026-10-19",
+  "status": "local_mvp_with_assignment_chooser_and_department_setup",
+  "tests": {
+    "unitAndBoundary": 49,
+    "integration": 48,
+    "browser": 19,
+    "total": 116,
+    "latestExecutedTotal": 68,
+    "integrationRerunForAssignmentUi": false,
+    "browserDetail": {
+      "realApiDatabaseWorkflows": 5,
+      "mockedInvitation": 2,
+      "mockedAssetPhoto": 3,
+      "mockedTransfers": 3,
+      "mockedAssignment": 6
+    }
+  },
+  "review": {
+    "files": 56,
+    "correctedFindings": 16,
+    "openFindings": 0,
+    "masterControl": {
+      "method": "independent_static_review",
+      "openFindings": 0
+    },
+    "registerCompatibility": {
+      "method": "independent_focused_review",
+      "correctedFindings": 1,
+      "openFindings": 0
+    },
+    "gmailSetup": {
+      "method": "independent_focused_review",
+      "openFindings": 0
+    },
+    "resendInvitation": {
+      "method": "independent_focused_review",
+      "openFindings": 0
+    },
+    "assetPhotos": {
+      "method": "independent_focused_review",
+      "correctedTestFixtures": 1,
+      "openFindings": 0
+    },
+    "unknownOptions": {
+      "method": "independent_focused_review",
+      "openFindings": 0
+    },
+    "dataTransfers": {
+      "method": "independent_backend_and_frontend_static_review_with_fix_readback",
+      "correctedFindings": 4,
+      "openFindings": 0,
+      "documentationClarifications": "Spreadsheet staging and complete correction replacement semantics"
+    },
+    "assignmentDiscovery": {
+      "method": "independent_static_review_with_fix_readback",
+      "openFindings": 0,
+      "maintenancePlanGuardCorrectedBeforeExecution": true
+    }
+  },
+  "secretsIncluded": false,
+  "files": [
+    {
+      "path": ".dockerignore",
+      "sha256": "cf1eee81e6ee4b60fac6346a6751855aad20d03dfa5c393a66c4dd55d42f662b"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "299ee769f6bafeee17f7e84f7a018879905be4442f61d7bb780469d66091603f"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "e2223ae081fb0ca8547421355a627e48c6f4bec6d03f8c6fc594dfc712e58148"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "0e339bdc585b35d35b3322c17901390fef74b793940f5e92ec09a2181b50924e"
+    },
+    {
+      "path": ".prettierignore",
+      "sha256": "0c7774aa67e161c40ec90d72e4d3ea87d8c285095616095dd59d90db2397ddad"
+    },
+    {
+      "path": ".prettierrc.json",
+      "sha256": "09f6937557f6ed835eb2500269e413c098156ba43d534a0d6b7577e8663eaf92"
+    },
+    {
+      "path": "README.md",
+      "sha256": "9fc62db0551f68866d5e15328b121fd82c02c29400e93c81e2fc1a7220eeff87"
+    },
+    {
+      "path": "REVIEW.md",
+      "sha256": "eb72900d66a3725e190a217fb684f5c3723ab9f147d8352c819908fd460d1ba0"
+    },
+    {
+      "path": "VERIFICATION.md",
+      "sha256": "5862eef1d210410bfcf5b0d201394b71c26139bb3944b1a7cdcd171c6c64669a"
+    },
+    {
+      "path": "apps/api/db/migrations/001_initial.sql",
+      "sha256": "4b6b605fba464a755f6f74bbf71ab3eb01b183284abfad484d9a28747587990c"
+    },
+    {
+      "path": "apps/api/db/migrations/002_security.sql",
+      "sha256": "5e76575151d741dd4b465ce69e3366a4ac104d4fef9b20dc8db4096debc5d7d9"
+    },
+    {
+      "path": "apps/api/db/migrations/003_source_vocabulary.sql",
+      "sha256": "26d72a61679617d41d039d7e9819b311a041c36e0e4f624ba40f9cb2bff0d926"
+    },
+    {
+      "path": "apps/api/db/migrations/004_master_control.sql",
+      "sha256": "1f11b37b4a5de143ebae25f3e084b6d0c3aa7a82cdda0d5ee5b7661e3ba1fa8a"
+    },
+    {
+      "path": "apps/api/db/migrations/005_asset_photos.sql",
+      "sha256": "93f7b7d6ec3c38fe6fb75932dd9a1c6dfff44c0ff4a1f6c181bc6e042cbdbeec"
+    },
+    {
+      "path": "apps/api/db/migrations/006_retire_unknown_options.sql",
+      "sha256": "92e9365e0a7e228063835e1e7b4bcde0fe114c691bbd5f3db2a2dfe9967d33aa"
+    },
+    {
+      "path": "apps/api/db/migrations/007_data_transfers.sql",
+      "sha256": "6e5cbcff72248e3d676f20dbec1d978fea7daf3f601677bfda0b9ee2ffe49dfd"
+    },
+    {
+      "path": "apps/api/package.json",
+      "sha256": "04d7bd223da4ad5e01f4db9281194d0303fe2f4a2bb3a9cbe1d9e702d7e87042"
+    },
+    {
+      "path": "apps/api/src/app.module.ts",
+      "sha256": "5beeb2a1a4046c8cd1d600ed446ae383738875d7f05183f48886eb65bf3fe2e3"
+    },
+    {
+      "path": "apps/api/src/asset-photos.ts",
+      "sha256": "405a7a5e3a4c540d55ccdc5967f14b5b0855e0a462e676075c272db79d48945e"
+    },
+    {
+      "path": "apps/api/src/auth.ts",
+      "sha256": "9b75f44fb732db622b42544bbcb3f1230a5616bb609003d454a95edbb6aef1a6"
+    },
+    {
+      "path": "apps/api/src/cli.ts",
+      "sha256": "c15926ce4f1dd47b0d445b03b8be0af447dd74c8bead24bb055756a14cb2d3f0"
+    },
+    {
+      "path": "apps/api/src/config.ts",
+      "sha256": "cc20e26cc25a04265371b9993ee15ffc6f8373f733e95bd2a4edc255633b007b"
+    },
+    {
+      "path": "apps/api/src/data-transfers.ts",
+      "sha256": "c5db7d477cfce6371504ee561cd20986ede9272f7299b7ee7f5077967ab7ac59"
+    },
+    {
+      "path": "apps/api/src/db.ts",
+      "sha256": "96b2a1f05cfee73f401883279f805ac5dea4baa61511aa2a767e09d73798166d"
+    },
+    {
+      "path": "apps/api/src/domain-assets.ts",
+      "sha256": "3d2f761cb8fb7d21e923a38195dd1523b0039fd2e70341fb247389f2b065db26"
+    },
+    {
+      "path": "apps/api/src/domain-helpers.ts",
+      "sha256": "e58b4fdf87514f8f1b05cb9b10b30fa721b805eb054f74a4551872a4fc72392d"
+    },
+    {
+      "path": "apps/api/src/domain-import.ts",
+      "sha256": "5c6c6d0bd247e442f13b41c4116a88c2aba2829cbde76bc1593bdb196b4e2796"
+    },
+    {
+      "path": "apps/api/src/domain-masters.ts",
+      "sha256": "8b02b511f3da3a34a1382a255956d23da8ff70711096979e5ed19bc58452c59a"
+    },
+    {
+      "path": "apps/api/src/domain-tickets.ts",
+      "sha256": "ea51dc63d2e6e9c560960617bfcb6cf0b6af4801687823266ff8a9b3bb30eba8"
+    },
+    {
+      "path": "apps/api/src/domain.ts",
+      "sha256": "aa090ec78495844ecd0cc4dd5d7dff4ca84a86003c42a5ca4dfecdf864849799"
+    },
+    {
+      "path": "apps/api/src/gmail-setup.ts",
+      "sha256": "e51d36e65a89e03f23ceed7bec6c8cc5949df73b0120921d0b8b2035b381d9ed"
+    },
+    {
+      "path": "apps/api/src/main.ts",
+      "sha256": "55f94f3164d66e3b5d4f33932ac386f2500a62bd800ecc0ad895bda3ee642e83"
+    },
+    {
+      "path": "apps/api/src/security.ts",
+      "sha256": "05b308c93a0a4b0996c3f84647726f8fd60eb393dedadf575531287017f9fe63"
+    },
+    {
+      "path": "apps/api/src/worker.ts",
+      "sha256": "a8f527cce4a01eaa05e9423edbd92c6b72376926f74836e96c240c892bc712a7"
+    },
+    {
+      "path": "apps/api/test/asset-photos.integration.test.ts",
+      "sha256": "f30be53fe750fc242efe64111012fb5f437651e28b81338887f4cd798319aa45"
+    },
+    {
+      "path": "apps/api/test/auth.integration.test.ts",
+      "sha256": "dc3f1376f5a0fdf964e08e3b90f5c83235a40764abcceaad821b2d858f064922"
+    },
+    {
+      "path": "apps/api/test/auth.test.ts",
+      "sha256": "78bd1460b052e987d9c7e5654346bc2aebf8d4d2fed5ec2815ee11405da9fe84"
+    },
+    {
+      "path": "apps/api/test/data-transfers.integration.test.ts",
+      "sha256": "96684b54edca8f76cc8c85fa6158a909859f3969823ebff4e2515aa7653f13d7"
+    },
+    {
+      "path": "apps/api/test/domain.integration.test.ts",
+      "sha256": "29e56be9ad510f7af1fd83689244a93a7f03d8eb73498b69576ceb10a04d83b6"
+    },
+    {
+      "path": "apps/api/test/gmail-setup.test.ts",
+      "sha256": "e7e114cec4c04d4b1a7fdba2b7467439f9bc6451245d30d27ca46b6ee4d9903f"
+    },
+    {
+      "path": "apps/api/test/masters.integration.test.ts",
+      "sha256": "3cd7556ce0ec4211dd8d557ad95f329bbbf565e4152f8bf47870660e30ee1997"
+    },
+    {
+      "path": "apps/api/test/privileges.integration.test.ts",
+      "sha256": "ee2f7906abef240b8b8e08c424b566a0645d70718f456827492e5f49b26413ee"
+    },
+    {
+      "path": "apps/api/test/worker.integration.test.ts",
+      "sha256": "2d8ed421fedc232cb5649fa37efc38a88f34161ff4d793f5ad4114b2b1b3ab88"
+    },
+    {
+      "path": "apps/api/tsconfig.json",
+      "sha256": "130593c038e9cfe87f57d0d4d5c5c97944e1b7bedf9c58c6f5aae4e2d66388b1"
+    },
+    {
+      "path": "apps/web/index.html",
+      "sha256": "ba72a14997240757729466f6fbf948013ed345fd6b3d8e5782dd7da725b4d5af"
+    },
+    {
+      "path": "apps/web/package.json",
+      "sha256": "8513147b583bcf42abc94cef57b6a70c3982cd90ee4715f613f83fa6ed3f161f"
+    },
+    {
+      "path": "apps/web/src/App.tsx",
+      "sha256": "c6d5e10ff5b32660010f49a7e5190b581c7e8d2296c32f670bea0d13525d363b"
+    },
+    {
+      "path": "apps/web/src/api.test.ts",
+      "sha256": "b63f73081ca177d67167d9d28f14e113488a459eb117f4d4f43682d6a9384445"
+    },
+    {
+      "path": "apps/web/src/api.ts",
+      "sha256": "002dcfa691f4195c1cfe2c4dbff0bdb1c781ed6de651f795fb04ab8c2d7ed69f"
+    },
+    {
+      "path": "apps/web/src/components/Admin.tsx",
+      "sha256": "b9c4656bf0e6a4a9e488eea9ef808043bdb6b3f123285ede94c28fef52670676"
+    },
+    {
+      "path": "apps/web/src/components/AssetPhoto.tsx",
+      "sha256": "39cc82d39b15db83f45de7cc1fc6229cc43c567f4d0f2bf7696ae0117a7b54ff"
+    },
+    {
+      "path": "apps/web/src/components/Assets.tsx",
+      "sha256": "dcbbe62e9f2f71bded0ba1290a2f658abb3ed38d20b52db5ab33aa3864cec146"
+    },
+    {
+      "path": "apps/web/src/components/Auth.tsx",
+      "sha256": "43ffd81032f896bd2547da34ff39e331d9df8681549f527a04f00b2feb019ddf"
+    },
+    {
+      "path": "apps/web/src/components/Dashboards.tsx",
+      "sha256": "ca7037332514641a3817e852ed02e65d7ada51c0a09b68d3ead405816b2f0194"
+    },
+    {
+      "path": "apps/web/src/components/DataTransfer.tsx",
+      "sha256": "5a373666558f1038148fa7ebb776461a29244e6825f9e6a5bfd7c59dca268718"
+    },
+    {
+      "path": "apps/web/src/components/MasterControl.tsx",
+      "sha256": "80afedb0f3f32d65178448bfb0578c08a7d0212367ee738fca10bbc8196a2bac"
+    },
+    {
+      "path": "apps/web/src/components/References.tsx",
+      "sha256": "0307522956e1b84724af20166aa7ebe3d00fb31a10536497e3b087f1de3c55ec"
+    },
+    {
+      "path": "apps/web/src/components/Tickets.tsx",
+      "sha256": "a555a34628195105124ce212025d1ef30a74b109995d0b2480523511556f8e55"
+    },
+    {
+      "path": "apps/web/src/components/ui.tsx",
+      "sha256": "e55018db415979cd37a5ee4f57b7f83cce6c1a143d3c04472d1bd2860e10e4ac"
+    },
+    {
+      "path": "apps/web/src/hooks.ts",
+      "sha256": "010441c9a41b2844cd19f4686dbb28a44dc1a85537d25fdda6d3ceea759d49c3"
+    },
+    {
+      "path": "apps/web/src/main.tsx",
+      "sha256": "1d7d10af5ae4a1c03933ec8031a4aa2b070e339bc791f440cd2fe31cebd68bfa"
+    },
+    {
+      "path": "apps/web/src/session.tsx",
+      "sha256": "0d8ba039fd4570414a187ba3929dcb25518d33a6a4d361738689eb3c23543e3c"
+    },
+    {
+      "path": "apps/web/src/styles.css",
+      "sha256": "5034d2f9d0b8e7cc13ab2aa44846afcd1f0192e2d57c963759c6ac782c8f6eb1"
+    },
+    {
+      "path": "apps/web/src/transfer-files.test.ts",
+      "sha256": "168d508411d57833df517248ee75dc420bc2120ae492be020a29ac131212ace3"
+    },
+    {
+      "path": "apps/web/src/transfer-files.ts",
+      "sha256": "eb7c3ca71a6bb3dea2b1986216ab0553e719aeb8f8b80bde974c00ca212459b7"
+    },
+    {
+      "path": "apps/web/src/types.ts",
+      "sha256": "b81663c16cfe258ca80a61c8dfed9659a61263a3fab821b0fefb7746a1d0823d"
+    },
+    {
+      "path": "apps/web/tsconfig.json",
+      "sha256": "aefbb9cde2f8c0fe9d540fba79f95a246cdf2375aec40a44ba527609a4e85950"
+    },
+    {
+      "path": "apps/web/vite.config.ts",
+      "sha256": "e5d5ef16cee7ba6b4aca4690f110cb86b1165fdb3fb2a46fb859cdf7b810a540"
+    },
+    {
+      "path": "docs/API.md",
+      "sha256": "5ae1cba530a37594ec192b399e3b7f64aed60577ad5e7cef8e8508587a263bef"
+    },
+    {
+      "path": "docs/DATA_TRANSFERS.md",
+      "sha256": "1db536fbaf24631d8f4cfc84f048dbeb87ee00f251884360978f794d55c87cbc"
+    },
+    {
+      "path": "docs/GMAIL_SMTP.md",
+      "sha256": "f1c1e4cfbdc7042772cb4dcea69ecf89f80bf42e41c7ca982f105640d0e3f213"
+    },
+    {
+      "path": "docs/PRODUCTION.md",
+      "sha256": "8b04c0a2bf3829f1f355767b522132afe6b8f66099e067d4c045ea57678a308e"
+    },
+    {
+      "path": "docs/screenshots/admin-dashboard-desktop.png",
+      "sha256": "e3b3fb96053b11f2a724d3f78dfd61d78d554e5e9b514f6963d406e1ad682bfc"
+    },
+    {
+      "path": "docs/screenshots/employee-dashboard-mobile.png",
+      "sha256": "f57b21d5875c5da8cd943184b02f69c467e596ac77d1c644d43bc103d2aad392"
+    },
+    {
+      "path": "docs/screenshots/employee-ticket-desktop.png",
+      "sha256": "11c4360035559cdb389b853d43597066300d5038b4be93108c999ad51a4b9888"
+    },
+    {
+      "path": "docs/screenshots/master-control-desktop.png",
+      "sha256": "5a6d8298ba2c5f41efce4c340e3ce460f770f482471349b542701eae6a6ade31"
+    },
+    {
+      "path": "docs/source-map.json",
+      "sha256": "1bb4ae91a4095880ed563e8c67a76a23a06c6342841a2bb78fc6c68a3041a1fe"
+    },
+    {
+      "path": "eslint.config.mjs",
+      "sha256": "eeaa1d316cebb49c3d83a86b34e7000453d006706421f5394057f78aa4a85a3d"
+    },
+    {
+      "path": "infra/Dockerfile",
+      "sha256": "4bff983cf0462410e7f2cb00e3f27986cd999f0a744c58b9cd0973a1d284c2d7"
+    },
+    {
+      "path": "infra/compose.local.yml",
+      "sha256": "4faa0a42d832218d9b458411360213b854093b1d15bfe6c63f934b7c5bce1903"
+    },
+    {
+      "path": "infra/nginx.conf",
+      "sha256": "3c6e5b360b9436e25d632166b60bd187f26f38f9e49f97b60d151a12a419909d"
+    },
+    {
+      "path": "infra/runtime-grants.sql",
+      "sha256": "e41150a2ea1a4f81b688a81d46f08cf268c709c8cae4bf656550a14324e8942f"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "4391bfafc84aa6cd3800d03db5ad501a8dd6e4015ab1be696b942732b54813d8"
+    },
+    {
+      "path": "package.json",
+      "sha256": "cc950e4ffcf0663ca5574a1c229562e214078718bef6755819ace315f9038be6"
+    },
+    {
+      "path": "playwright.config.ts",
+      "sha256": "4a81ede25291fa95d0f8b150a7598a4d79df7cd160a09d4b41c9cb92ba52ce7e"
+    },
+    {
+      "path": "scripts/dev-test.mjs",
+      "sha256": "2b44af0eb506a4520bc4b3411e87c451e5d5fc93c5ca499d196eae8f14f7d2ad"
+    },
+    {
+      "path": "scripts/setup-local.mjs",
+      "sha256": "3f7fd204bfba2a836f091d5edbf3af8718d42212528ebf23b50ca46b0e2873db"
+    },
+    {
+      "path": "scripts/test-integration.mjs",
+      "sha256": "a526e295772461e0ee909b749e60e7a00376488280a2683cee9061d6c8a434a2"
+    },
+    {
+      "path": "test/asset-photo.playwright.config.ts",
+      "sha256": "836f890c6a523ba3e033fc5180cf213240cd6db68386e8dbccc41391951b07f4"
+    },
+    {
+      "path": "test/asset-photo.spec.ts",
+      "sha256": "c1ce9f734aedb693bc0d85c3c4ccf083f0251bc9b0bc1d5b42a66ec84875cccc"
+    },
+    {
+      "path": "test/assignment-discovery.spec.ts",
+      "sha256": "8754f4672f8ed9e7e47ac6c839c07aadca03e03db85588a5c5511160de4abc06"
+    },
+    {
+      "path": "test/assignment.playwright.config.ts",
+      "sha256": "d58c6721eb4c41f2b937de89fba2990682cba96d6eb55fc83238642dfbac1c91"
+    },
+    {
+      "path": "test/data-transfer.playwright.config.ts",
+      "sha256": "206d678aba5edecb6955a0d9bc6975b62f2d4e4eb4c334ac1a4190f681482bb9"
+    },
+    {
+      "path": "test/data-transfer.spec.ts",
+      "sha256": "d6c8aaa8c68581f77e1453679c296a588840479944e4271e46c9628d2fcd58d8"
+    },
+    {
+      "path": "test/resend-invitation.spec.ts",
+      "sha256": "d8fa84b39bddeef241f5aeaebaa4cc487f60c455eddc40740620e0579fc9e4c2"
+    },
+    {
+      "path": "test/resend.playwright.config.ts",
+      "sha256": "0c1ac6e601c6735a7a1e8b8bc11c78e73b34e755679686768216fad630d26127"
+    },
+    {
+      "path": "test/system.spec.ts",
+      "sha256": "686bb18689d0e6beb170ed2e31eb26336ea68a44c77bbe5c11546628a6ab3378"
+    }
+  ],
+  "formatCheck": {
+    "applicationSource": "pass",
+    "pending": [
+      "test/system.spec.ts"
+    ]
+  },
+  "latestChecks": {
+    "unitAndBoundary": 49,
+    "integration": "48 previously passed; backend unchanged in this UI task",
+    "lint": "passed",
+    "productionBuild": "passed; optional ExcelJS chunk warning",
+    "gmailTlsConnection": "passed without authentication or email",
+    "gmailAuthentication": "passed privately without sending mail; SMTP activated",
+    "browser": "19/19 full Edge suite passed",
+    "typecheck": "passed",
+    "formatCheck": "application source passes; existing test/system.spec.ts warning preserved",
+    "dependencyAudit": "zero known vulnerabilities",
+    "assetPhotoHttp": 6,
+    "localHealth": "normal development API,web and notification worker restored; API and web HTTP200",
+    "frontendLintAndFormatting": "passed for changed files",
+    "unknownOptions": "zero active Unknown condition/risk choices;2 historicalcodes and2retirementauditentries preserved",
+    "dataTransferMigration": "007 applied to local development and isolated test databases",
+    "operationalData": "14 active departments;13 audited creations; existing IT identity unchanged; original176 staged source rows retained; no live custody changes"
+  }
+}
