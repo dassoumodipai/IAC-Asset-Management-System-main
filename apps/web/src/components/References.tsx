@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import type { References, LocationReference } from '../types';
-import { Badge } from './ui';
+import { Badge, Select } from './ui';
 
 export function useReferences() {
   return useQuery({
@@ -79,27 +79,28 @@ export function ReferenceSelect({
   const values = referenceOptions(refs, kind, includeInactive);
   const current = refs?.values.find((item) => item.code === value && kindMatches(item.kind, kind));
   const unavailable = value && !values.some((item) => item.code === value);
+
+  const options = [
+    { value: '', label: allowEmpty ? 'All' : required ? 'Select...' : 'Not set' },
+    ...(unavailable && preserveCurrent && current
+      ? [{ value: current.code, label: `${current.label}${current.active === false ? ' (inactive)' : ''}`, disabled: !preserveCurrent }]
+      : []),
+    ...values.map((item) => ({
+      value: item.code,
+      label: `${item.label}${item.active === false ? ' (inactive)' : ''}`,
+      disabled: item.active === false,
+    })),
+  ];
+
   return (
-    <select
-      id={id}
+    <Select
+      label=""
+      htmlFor={id}
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={onChange}
+      options={options}
       required={required}
-    >
-      <option value="">{allowEmpty ? 'All' : required ? 'Select...' : 'Not set'}</option>
-      {unavailable ? (
-        <option value={value} disabled={!preserveCurrent}>
-          {preserveCurrent
-            ? `${current?.label ?? value}${current?.active === false ? ' (inactive)' : ''}`
-            : 'Select an active option...'}
-        </option>
-      ) : null}
-      {values.map((item) => (
-        <option key={item.code} value={item.code}>
-          {item.label}
-          {!item.active ? ' (inactive)' : ''}
-        </option>
-      ))}
-    </select>
+      disabled={false}
+    />
   );
 }

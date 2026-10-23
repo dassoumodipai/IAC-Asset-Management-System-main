@@ -25,6 +25,7 @@ import {
   Panel,
   Timeline,
   displayDate,
+  Select,
 } from './ui';
 const ticketExportColumns = [
   'ticketNumber',
@@ -310,29 +311,23 @@ export function TicketForm() {
                 {validation}
               </div>
             ) : null}
-            <Field
+            <Select
               label="Related asset (optional)"
               htmlFor="ticket-asset"
+              value={assetId}
+              onChange={setAssetId}
               hint="Choose no asset for a portal access issue. Only currently assigned equipment is eligible."
-            >
-              <select
-                id="ticket-asset"
-                value={assetId}
-                onChange={(event) => setAssetId(event.target.value)}
-              >
-                <option value="">No asset / general support</option>
-                {assetId && !eligible.some((asset) => asset.id === assetId) ? (
-                  <option value={assetId} disabled>
-                    Loading selected asset...
-                  </option>
-                ) : null}
-                {eligible.map((asset) => (
-                  <option key={asset.id} value={asset.id}>
-                    {asset.assetCode} · {asset.description}
-                  </option>
-                ))}
-              </select>
-            </Field>
+              options={[
+                { value: '', label: 'No asset / general support' },
+                ...(assetId && !eligible.some((asset) => asset.id === assetId)
+                  ? [{ value: assetId, label: 'Loading selected asset...', disabled: true }]
+                  : []),
+                ...eligible.map((asset) => ({
+                  value: asset.id,
+                  label: `${asset.assetCode} · ${asset.description}`,
+                })),
+              ]}
+            />
             <ErrorNotice
               error={assets.error}
               retry={() => {
@@ -630,16 +625,16 @@ export function TicketDetail() {
                   />
                 </Field>
                 {staff ? (
-                  <Field label="Visibility" htmlFor="reply-visibility">
-                    <select
-                      id="reply-visibility"
-                      value={visibility}
-                      onChange={(event) => setVisibility(event.target.value)}
-                    >
-                      <option value="PUBLIC">Public reply · employee is notified</option>
-                      <option value="INTERNAL">Internal note · staff only</option>
-                    </select>
-                  </Field>
+                  <Select
+                    label="Visibility"
+                    htmlFor="reply-visibility"
+                    value={visibility}
+                    onChange={setVisibility}
+                    options={[
+                      { value: 'PUBLIC', label: 'Public reply · employee is notified' },
+                      { value: 'INTERNAL', label: 'Internal note · staff only' },
+                    ]}
+                  />
                 ) : null}
                 <button className="button" disabled={action.isPending || !body.trim()}>
                   {action.isPending
@@ -741,29 +736,28 @@ export function TicketDetail() {
                         }
                       }}
                     />
-                    <Field label="Assign to staff" htmlFor="ticket-owner">
-                      <select
-                        id="ticket-owner"
-                        value={ownerId}
-                        onChange={(event) => {
-                          setOwnerId(event.target.value);
-                          setOwnerVersion(ticket.version);
-                        }}
-                      >
-                        <option value="">Select team member</option>
-                        {staffUsers.data?.items
+                    <Select
+                      label="Assign to staff"
+                      htmlFor="ticket-owner"
+                      value={ownerId}
+                      onChange={(value) => {
+                        setOwnerId(value);
+                        setOwnerVersion(ticket.version);
+                      }}
+                      options={[
+                        { value: '', label: 'Select team member' },
+                        ...(staffUsers.data?.items
                           .filter(
                             (item) =>
                               item.state === 'ACTIVE' &&
                               (item.roles.includes('ADMIN') || item.roles.includes('IT_ADMIN')),
                           )
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.displayName}
-                            </option>
-                          ))}
-                      </select>
-                    </Field>
+                          .map((item) => ({
+                            value: item.id,
+                            label: item.displayName,
+                          })) || []),
+                      ]}
+                    />
                     <button
                       className="button secondary"
                       type="button"

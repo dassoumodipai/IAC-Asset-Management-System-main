@@ -43,6 +43,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
   const [message, setMessage] = useState('');
   const [challenge, setChallenge] = useState('');
   const [recovery, setRecovery] = useState(false);
+  const [revealPassword, setRevealPassword] = useState(false);
   const [token, setToken] = useState(initialLinkToken);
   const [fields, setFields] = useState({ email: '', displayName: '', password: '', code: '' });
   const titles: Record<AuthMode, string> = {
@@ -141,6 +142,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
   const needEmail = !challenge && ['login', 'register', 'forgot'].includes(mode);
   const needPassword = !challenge && ['login', 'register', 'reset', 'invite'].includes(mode);
   const isTokenMode = ['reset', 'invite', 'verify'].includes(mode);
+  const nameShown = !challenge && (mode === 'register' || mode === 'invite');
   return (
     <AccessLayout>
       <div className="auth-card" key={mode}>
@@ -182,6 +184,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                   onChange={(event) => setFields({ ...fields, displayName: event.target.value })}
                   required
                   maxLength={120}
+                  autoFocus={nameShown}
                 />
               </Field>
             ) : null}
@@ -195,6 +198,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                   onChange={(event) => setFields({ ...fields, email: event.target.value })}
                   maxLength={254}
                   required
+                  autoFocus={!nameShown}
                 />
               </Field>
             ) : null}
@@ -208,16 +212,28 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                     : 'Use 12–128 characters. A unique passphrase is recommended.'
                 }
               >
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  value={fields.password}
-                  onChange={(event) => setFields({ ...fields, password: event.target.value })}
-                  minLength={mode === 'login' ? 1 : 12}
-                  maxLength={128}
-                  required
-                />
+                <span className="input-affix">
+                  <input
+                    id="password"
+                    type={revealPassword ? 'text' : 'password'}
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    value={fields.password}
+                    onChange={(event) => setFields({ ...fields, password: event.target.value })}
+                    minLength={mode === 'login' ? 1 : 12}
+                    maxLength={128}
+                    required
+                    autoFocus={!nameShown && !needEmail}
+                  />
+                  <button
+                    type="button"
+                    className="affix-toggle"
+                    onClick={() => setRevealPassword((value) => !value)}
+                    aria-pressed={revealPassword}
+                    aria-label={revealPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {revealPassword ? 'Hide' : 'Show'}
+                  </button>
+                </span>
               </Field>
             ) : null}
             {challenge ? (

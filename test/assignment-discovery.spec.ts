@@ -317,7 +317,7 @@ test('Empty assignment chooser explains inventory prerequisites without offering
   await expect(
     page.getByRole('heading', { name: 'No assets ready for assignment', exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Create asset', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Create asset', exact: true }).first()).toHaveAttribute(
     'href',
     '/assets/new',
   );

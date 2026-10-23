@@ -2018,6 +2018,149 @@ textarea:focus {
   outline-offset: 1px;
   border-color: var(--focus);
 }
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23788c9c' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  padding-right: 32px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+select:hover:not(:disabled) {
+  border-color: #8a9baa;
+}
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background-color: var(--raised);
+}
+select option {
+  padding: 8px 12px;
+  background: var(--sheet);
+  color: var(--ink);
+}
+select option:disabled {
+  color: var(--muted);
+}
+select option:checked {
+  background: var(--frame-strong);
+  color: var(--ink);
+  font-weight: 500;
+}
+/* Custom Select Component */
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+.custom-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sheet);
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.custom-select-trigger:hover:not(:disabled) {
+  border-color: #8a9baa;
+}
+.custom-select-trigger:focus {
+  outline: 2px solid #cfe0ee;
+  outline-offset: 1px;
+  border-color: var(--focus);
+}
+.custom-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background-color: var(--raised);
+}
+.custom-select-value {
+  flex: 1;
+  color: var(--ink);
+}
+.custom-select-arrow {
+  margin-left: 8px;
+  color: #788c9c;
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+.custom-select[data-open="true"] .custom-select-arrow {
+  transform: rotate(180deg);
+}
+.custom-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--sheet);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  animation: slideDown 0.2s ease;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.custom-select-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-select-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-select-menu::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.custom-select-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.custom-select-option {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.1s ease;
+  color: var(--ink);
+  font-size: 13px;
+}
+.custom-select-option:hover:not(.disabled) {
+  background: var(--frame-strong);
+  color: var(--ink);
+}
+.custom-select-option.selected {
+  background: var(--frame-strong);
+  color: var(--ink);
+  font-weight: 500;
+}
+.custom-select-option.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  color: var(--muted);
+}
+.custom-select-option.disabled:hover {
+  background: transparent;
+}
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -2844,6 +2987,38 @@ td {
   border: 1px solid var(--sheet-edge);
   border-radius: 16px;
   padding: 32px 30px 22px;
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.04),
+    0 12px 32px -16px rgb(16 24 40 / 0.18);
+}
+.input-affix {
+  position: relative;
+  display: block;
+}
+.input-affix input {
+  padding-right: 56px;
+}
+.affix-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 8px 7px;
+  border-radius: 6px;
+}
+.affix-toggle:hover {
+  background: var(--accent-soft);
+}
+.affix-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 .auth-card {
   width: 100%;

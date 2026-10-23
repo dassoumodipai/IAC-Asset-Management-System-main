@@ -28,6 +28,7 @@ import {
   Panel,
   Timeline,
   displayDate,
+  Select,
 } from './ui';
 const assetExportColumns = [
   'assetCode',
@@ -199,21 +200,19 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             />
           </Field>
           {manage ? (
-            <Field label="Department" htmlFor="filter-department">
-              <select
-                id="filter-department"
-                value={filters.departmentId ?? ''}
-                onChange={(event) => update('departmentId', event.target.value)}
-              >
-                <option value="">All departments</option>
-                {refs.data?.departments.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name}
-                    {!item.active ? ' (inactive)' : ''}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <Select
+              label="Department"
+              htmlFor="filter-department"
+              value={filters.departmentId ?? ''}
+              onChange={(value) => update('departmentId', value)}
+              options={[
+                { value: '', label: 'All departments' },
+                ...(refs.data?.departments.map((item) => ({
+                  value: item.id,
+                  label: `${item.name}${!item.active ? ' (inactive)' : ''}`,
+                })) || []),
+              ]}
+            />
           ) : null}
         </div>
         <ErrorNotice
@@ -635,24 +634,23 @@ export function AssetDetail() {
                     onChange={setCondition}
                   />
                 </Field>
-                <Field label="Return location" htmlFor="return-location">
-                  <select
-                    id="return-location"
-                    value={location}
-                    onChange={(event) => setLocation(event.target.value)}
-                    required
-                  >
-                    <option value="">Select location</option>
-                    {refs.data?.locations
+                <Select
+                  label="Return location"
+                  htmlFor="return-location"
+                  value={location}
+                  onChange={setLocation}
+                  required={true}
+                  options={[
+                    { value: '', label: 'Select location' },
+                    ...(refs.data?.locations
                       .filter((item) => item.active || item.id === location)
-                      .map((item) => (
-                        <option key={item.id} value={item.id} disabled={!item.active}>
-                          {locationLabel(item)}
-                          {!item.active ? ' (inactive)' : ''}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
+                      .map((item) => ({
+                        value: item.id,
+                        label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
+                        disabled: !item.active,
+                      })) || []),
+                  ]}
+                />
                 <Field label="Return reason" htmlFor="return-reason">
                   <textarea
                     id="return-reason"
@@ -801,6 +799,47 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   const [validation, setValidation] = useState('');
   const set = (name: string, value: string) =>
     setValues((previous) => ({ ...previous, [name]: value }));
+  function fillDemo() {
+    const firstCode = (kind: string) => referenceOptions(refs.data, kind)[0]?.code ?? '';
+    setValues((previous) => ({
+      ...previous,
+      description: 'Demo laptop — Dell Latitude 5540 (sample record)',
+      manufacturer: 'Dell',
+      model: 'Latitude 5540',
+      serialNumber: 'DL5540-DEMO-001',
+      barcode: 'IAC-DEMO-0001',
+      category: firstCode('CATEGORY'),
+      assetType: firstCode('ASSET_TYPE'),
+      ownershipType: firstCode('OWNERSHIP'),
+      status: 'In Store',
+      condition: firstCode('CONDITION'),
+      riskLevel: firstCode('RISK'),
+      departmentId: refs.data?.departments.find((item) => item.active)?.id ?? '',
+      locationId: refs.data?.locations.find((item) => item.active)?.id ?? '',
+      configuration: 'Intel Core i7-1355U · 16 GB RAM · 512 GB NVMe SSD · Windows 11 Pro',
+      purchaseDate: '2024-04-15',
+      warrantyExpiry: '2027-04-15',
+      insuranceExpiry: '2027-03-31',
+      lastAuditDate: '2025-06-15',
+      nextAuditDate: '2026-12-15',
+      disposalDate: '2026-01-10',
+      disposalMethod: firstCode('DISPOSAL_METHOD'),
+      dataWipeRequired: firstCode('DATA_WIPE'),
+      disposalReference: 'DEMO-DISPOSAL-REF-001',
+      amcExpiry: '2027-04-15',
+      purchaseCost: '45999.00',
+      residualValue: '12000',
+      invoiceNumber: 'INV-DEMO-2024-0415',
+      supplier: 'Demo Technologies Pvt Ltd',
+      insurancePolicyNumber: 'POL-DEMO-88421',
+      depreciationMethod: firstCode('DEPRECIATION_METHOD'),
+      commentType: firstCode('COMMENT_TYPE'),
+      remarks: 'Sample record created with Fill demo values. Safe to edit or discard.',
+    }));
+    setAmc(true);
+    setValidation('');
+    action.reset();
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     setValidation('');
@@ -887,6 +926,19 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
           baseline
             ? `${baseline.assetCode} · The Asset ID is permanent.`
             : 'Add an item to the register. Its permanent Asset ID is assigned automatically.'
+        }
+        action={
+          !baseline ? (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={fillDemo}
+              disabled={refs.isPending || !!refs.error}
+              title="Fill every field with sample data"
+            >
+              Fill demo values
+            </button>
+          ) : undefined
         }
       />
       <FormTransfer
@@ -993,40 +1045,38 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 </Field>
               ),
             )}
-            <Field label="Department" htmlFor="departmentId">
-              <select
-                id="departmentId"
-                value={values.departmentId ?? ''}
-                onChange={(event) => set('departmentId', event.target.value)}
-              >
-                <option value="">Not set</option>
-                {refs.data?.departments
+            <Select
+              label="Department"
+              htmlFor="departmentId"
+              value={values.departmentId ?? ''}
+              onChange={(value) => set('departmentId', value)}
+              options={[
+                { value: '', label: 'Not set' },
+                ...(refs.data?.departments
                   .filter((item) => item.active || item.id === values.departmentId)
-                  .map((item) => (
-                    <option key={item.id} value={item.id} disabled={!item.active}>
-                      {item.name}
-                      {!item.active ? ' (inactive)' : ''}
-                    </option>
-                  ))}
-              </select>
-            </Field>
-            <Field label="Location" htmlFor="locationId">
-              <select
-                id="locationId"
-                value={values.locationId ?? ''}
-                onChange={(event) => set('locationId', event.target.value)}
-              >
-                <option value="">Not set</option>
-                {refs.data?.locations
+                  .map((item) => ({
+                    value: item.id,
+                    label: `${item.name}${!item.active ? ' (inactive)' : ''}`,
+                    disabled: !item.active,
+                  })) || []),
+              ]}
+            />
+            <Select
+              label="Location"
+              htmlFor="locationId"
+              value={values.locationId ?? ''}
+              onChange={(value) => set('locationId', value)}
+              options={[
+                { value: '', label: 'Not set' },
+                ...(refs.data?.locations
                   .filter((item) => item.active || item.id === values.locationId)
-                  .map((item) => (
-                    <option key={item.id} value={item.id} disabled={!item.active}>
-                      {locationLabel(item)}
-                      {!item.active ? ' (inactive)' : ''}
-                    </option>
-                  ))}
-              </select>
-            </Field>
+                  .map((item) => ({
+                    value: item.id,
+                    label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
+                    disabled: !item.active,
+                  })) || []),
+              ]}
+            />
           </div>
           <Field label="Configuration" htmlFor="configuration">
             <textarea
@@ -1313,28 +1363,27 @@ export function AssignmentForm() {
               }}
             />
             <form className="form-stack subsection" onSubmit={submit}>
-              <Field label="Approved employee" htmlFor="assignment-user">
-                <select
-                  id="assignment-user"
-                  value={selectedEmployee ? userId : ''}
-                  onChange={(event) => choose(event.target.value)}
-                  disabled={
-                    action.isPending ||
-                    employees.isPending ||
-                    !!employees.error ||
-                    !custodyAvailable
-                  }
-                  aria-describedby="assignment-eligibility"
-                  required
-                >
-                  <option value="">Choose an active, verified employee</option>
-                  {items.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.displayName} · {user.email}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <Select
+                label="Approved employee"
+                htmlFor="assignment-user"
+                value={selectedEmployee ? userId : ''}
+                onChange={choose}
+                disabled={
+                  action.isPending ||
+                  employees.isPending ||
+                  !!employees.error ||
+                  !custodyAvailable
+                }
+                ariaDescribedBy="assignment-eligibility"
+                required
+                options={[
+                  { value: '', label: 'Choose an active, verified employee' },
+                  ...items.map((user) => ({
+                    value: user.id,
+                    label: `${user.displayName} · ${user.email}`,
+                  })),
+                ]}
+              />
               <p id="assignment-eligibility" className="muted">
                 Recipients must be Active, have a verified email, accept portal access and hold the
                 Employee role. Manage invitations and roles in{' '}

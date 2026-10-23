@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api';
 export function PageTitle({
@@ -142,6 +143,95 @@ export function Field({
       {children}
       {hint ? <small>{hint}</small> : null}
     </div>
+  );
+}
+export function Select({
+  label,
+  htmlFor,
+  value,
+  onChange,
+  options,
+  hint,
+  disabled = false,
+  required = false,
+  ariaDescribedBy,
+}: {
+  label: string;
+  htmlFor: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string; disabled?: boolean }[];
+  hint?: string;
+  disabled?: boolean;
+  required?: boolean;
+  ariaDescribedBy?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <Field label={label} htmlFor={htmlFor} hint={hint}>
+      <div ref={selectRef} className="custom-select" data-open={isOpen} data-disabled={disabled}>
+        <button
+          type="button"
+          className="custom-select-trigger"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          aria-describedby={ariaDescribedBy}
+        >
+          <span className="custom-select-value">
+            {selectedOption ? selectedOption.label : 'Select...'}
+          </span>
+          <span className="custom-select-arrow">▼</span>
+        </button>
+        {isOpen && !disabled && (
+          <ul className="custom-select-menu" role="listbox">
+            {options.map((option) => (
+              <li
+                key={option.value}
+                className={`custom-select-option ${option.value === value ? 'selected' : ''} ${option.disabled ? 'disabled' : ''}`}
+                onClick={() => {
+                  if (!option.disabled) {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }
+                }}
+                role="option"
+                aria-selected={option.value === value}
+                aria-disabled={option.disabled}
+              >
+                {option.label}
+              </li>
+            ))}
+          </ul>
+        )}
+        {required && (
+          <input
+            type="hidden"
+            id={htmlFor}
+            value={value}
+            required={required}
+            onChange={() => {}}
+          />
+        )}
+      </div>
+    </Field>
   );
 }
 export function LoadMore({

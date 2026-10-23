@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import type { MasterData, MasterKind } from '../types';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
-import { Badge, Empty, ErrorNotice, Field, Loading, Metric, PageTitle, Panel } from './ui';
+import { Badge, Empty, ErrorNotice, Field, Loading, Metric, PageTitle, Panel, Select } from './ui';
 
 type Entry = {
   id?: string;
@@ -315,15 +315,17 @@ function MasterControlPage({
                     />
                   </Field>
                   <Field label="Availability" htmlFor="master-availability">
-                    <select
-                      id="master-availability"
+                    <Select
+                      label=""
+                      htmlFor="master-availability"
                       value={availability}
-                      onChange={(event) => setAvailability(event.target.value)}
-                    >
-                      <option value="all">All entries</option>
-                      <option value="active">Active only</option>
-                      <option value="inactive">Inactive only</option>
-                    </select>
+                      onChange={setAvailability}
+                      options={[
+                        { value: 'all', label: 'All entries' },
+                        { value: 'active', label: 'Active only' },
+                        { value: 'inactive', label: 'Inactive only' },
+                      ]}
+                    />
                   </Field>
                 </div>
                 <ExportRecords

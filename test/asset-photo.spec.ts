@@ -153,7 +153,7 @@ async function chooseSyntheticPhoto(page: Page, png: string) {
     mimeType: 'image/png',
     buffer: Buffer.from(png.split(',')[1], 'base64'),
   });
-  await expect(page.getByText('Preview — not saved', { exact: true })).toBeVisible();
+  await expect(page.getByText('Preview, not saved', { exact: true })).toBeVisible();
 }
 
 test('Admin previews locally and explicitly saves an asset photo with current version and CSRF', async ({
@@ -176,7 +176,7 @@ test('Admin previews locally and explicitly saves an asset photo with current ve
     page.getByRole('img', { name: 'Generic laptop illustration', exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText('Generic illustration — not the actual asset', { exact: true }),
+    page.getByText('Generic illustration, not the actual asset', { exact: true }),
   ).toBeVisible();
   await chooseSyntheticPhoto(page, png);
   const preview = page.getByRole('img', { name: `Photo preview for ${assetCode}`, exact: true });
@@ -205,7 +205,7 @@ test('Admin previews locally and explicitly saves an asset photo with current ve
   await expect(
     page.getByRole('img', { name: `Asset photo for ${assetCode}`, exact: true }),
   ).toHaveAttribute('src', prepared!);
-  await expect(page.getByText('Preview — not saved', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Preview, not saved', { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole('img', { name: 'Generic laptop illustration', exact: true }),
   ).toHaveCount(0);
@@ -288,7 +288,7 @@ test('failed photo save retains the local draft and reason for an explicit retry
     .fill('Approved synthetic replacement');
   await page.getByRole('button', { name: 'Save photo', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Photo could not be saved. Please retry.');
-  await expect(page.getByText('Preview — not saved', { exact: true })).toBeVisible();
+  await expect(page.getByText('Preview, not saved', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Photo change reason', { exact: true })).toHaveValue(
     'Approved synthetic replacement',
   );

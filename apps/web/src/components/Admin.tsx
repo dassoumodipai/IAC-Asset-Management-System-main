@@ -16,6 +16,7 @@ import {
   LoadMore,
   PageTitle,
   Panel,
+  Select,
   displayDate,
 } from './ui';
 export function UserAdmin() {
@@ -260,16 +261,18 @@ export function UserAdmin() {
                 </label>
               ))}
             </fieldset>
-            <Field label="Account status" htmlFor="account-state">
-              <select
-                id="account-state"
-                value={state}
-                onChange={(event) => setState(event.target.value)}
-              >
-                <option value="ACTIVE">Active</option>
-                <option value="DISABLED">Disabled</option>
-              </select>
-            </Field>
+<Field label="Account status" htmlFor="account-state">
+  <Select
+    label=""
+    htmlFor="account-state"
+    value={state}
+    onChange={setState}
+    options={[
+      { value: 'ACTIVE', label: 'Active' },
+      { value: 'DISABLED', label: 'Disabled' },
+    ]}
+  />
+</Field>
             <Field label="Reason for access change" htmlFor="access-reason">
               <textarea
                 id="access-reason"
@@ -437,21 +440,23 @@ export function AuditView() {
           }))
         }
       />
-      <Panel>
-        <Field label="Record type" htmlFor="audit-entity">
-          <select
-            id="audit-entity"
-            value={entityType}
-            onChange={(event) => setEntityType(event.target.value)}
-          >
-            <option value="">All records</option>
-            <option value="asset">Asset</option>
-            <option value="assignment">Assignment</option>
-            <option value="ticket">Ticket</option>
-            <option value="USER">User</option>
-          </select>
-        </Field>
-        <ErrorNotice
+<Panel>
+  <Field label="Record type" htmlFor="audit-entity">
+    <Select
+      label=""
+      htmlFor="audit-entity"
+      value={entityType}
+      onChange={setEntityType}
+      options={[
+        { value: '', label: 'All records' },
+        { value: 'asset', label: 'Asset' },
+        { value: 'assignment', label: 'Assignment' },
+        { value: 'ticket', label: 'Ticket' },
+        { value: 'USER', label: 'User' },
+      ]}
+    />
+  </Field>
+  <ErrorNotice
           error={query.error}
           retry={() => {
             void query.refetch();
@@ -965,16 +970,18 @@ export function ImportsView() {
       <div className="dashboard-columns">
         <Panel title="Stage a reviewed export">
           <div className="form-stack">
-            <Field label="Register template layout" htmlFor="register-template-layout">
-              <select
-                id="register-template-layout"
-                value={templateLayout}
-                onChange={(event) => setTemplateLayout(event.target.value)}
-              >
-                <option value="REGISTER_44">44-column register</option>
-                <option value="REGISTER_42">42-column register</option>
-              </select>
-            </Field>
+<Field label="Register template layout" htmlFor="register-template-layout">
+  <Select
+    label=""
+    htmlFor="register-template-layout"
+    value={templateLayout}
+    onChange={setTemplateLayout}
+    options={[
+      { value: 'REGISTER_44', label: '44-column register' },
+      { value: 'REGISTER_42', label: '42-column register' },
+    ]}
+  />
+</Field>
             <ExportRecords
               name={`register-template-${templateLayout.toLowerCase()}`}
               columns={templateLayout === 'REGISTER_44' ? register44Headers : register42Headers}
@@ -1482,20 +1489,22 @@ export function NotificationSettings() {
             }}
           />
           <form className="form-stack" onSubmit={submit}>
-            <Field label="Recipient group" htmlFor="notification-group">
-              <select
-                id="notification-group"
-                value={group}
-                onChange={(event) => {
-                  setGroup(event.target.value);
-                  setEmails('');
-                  setVerified(false);
-                }}
-              >
-                <option value="ADMIN">Admin</option>
-                <option value="IT">IT support</option>
-              </select>
-            </Field>
+<Field label="Recipient group" htmlFor="notification-group">
+  <Select
+    label=""
+    htmlFor="notification-group"
+    value={group}
+    onChange={(value) => {
+      setGroup(value);
+      setEmails('');
+      setVerified(false);
+    }}
+    options={[
+      { value: 'ADMIN', label: 'Admin' },
+      { value: 'IT', label: 'IT support' },
+    ]}
+  />
+</Field>
             <Field
               label="Approved email addresses"
               htmlFor="notification-emails"
