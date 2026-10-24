@@ -145,6 +145,28 @@ export function Field({
     </div>
   );
 }
+export function Checkbox({
+  label,
+  checked,
+  onChange,
+  className = '',
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <label className={`checkbox ${className}`.trim()}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
 export function Select({
   label,
   htmlFor,
@@ -188,9 +210,11 @@ export function Select({
       <div ref={selectRef} className="custom-select" data-open={isOpen} data-disabled={disabled}>
         <button
           type="button"
+          id={htmlFor}
           className="custom-select-trigger"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
+          role="combobox"
           aria-expanded={isOpen}
           aria-haspopup="listbox"
           aria-describedby={ariaDescribedBy}
@@ -224,7 +248,7 @@ export function Select({
         {required && (
           <input
             type="hidden"
-            id={htmlFor}
+            id={`${htmlFor}-hidden`}
             value={value}
             required={required}
             onChange={() => {}}

@@ -5,6 +5,7 @@ import { api } from '../api';
 import { useAction } from '../hooks';
 import type { Asset } from '../types';
 import { downloadFile } from '../transfer-files';
+import { ASSET_LIMITS, preparePhoto } from '../photo-prepare';
 import { ErrorNotice, Field, Loading, Panel, displayDate } from './ui';
 
 interface PhotoResponse {
@@ -16,48 +17,7 @@ interface PhotoDraft {
   dataUrl: string;
   version: number;
 }
-const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
-const MAX_PHOTO_BYTES = 40 * 1024;
-
-async function preparePhoto(file: File): Promise<string> {
-  if (!['image/jpeg', 'image/png'].includes(file.type))
-    throw new Error('Choose a JPEG or PNG image.');
-  if (!file.size || file.size > MAX_SOURCE_BYTES)
-    throw new Error('Choose an image no larger than 10 MiB.');
-  const source = URL.createObjectURL(file);
-  const image = new Image();
-  try {
-    image.src = source;
-    await image.decode().catch(() => {
-      throw new Error('This image could not be opened. Choose another JPEG or PNG.');
-    });
-    if (!image.naturalWidth || !image.naturalHeight)
-      throw new Error('This image has no usable dimensions.');
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Image preparation is unavailable in this browser.');
-    const initialScale = Math.min(1, 640 / image.naturalWidth, 480 / image.naturalHeight);
-    for (let step = 0; step < 6; step++) {
-      const scale = initialScale * 0.8 ** step;
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      context.fillStyle = '#ffffff';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      for (const quality of [0.86, 0.74, 0.62, 0.5, 0.38, 0.26]) {
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        if (!dataUrl.startsWith('data:image/jpeg;base64,'))
-          throw new Error('Image preparation is unavailable in this browser.');
-        if (atob(dataUrl.slice(dataUrl.indexOf(',') + 1)).length <= MAX_PHOTO_BYTES) return dataUrl;
-      }
-    }
-    throw new Error('This image could not fit the photo limit. Choose a simpler image.');
-  } finally {
-    URL.revokeObjectURL(source);
-  }
-}
-
-function GenericLaptop() {
+export function GenericLaptop() {
   return (
     <svg
       className="asset-photo-illustration"
@@ -136,7 +96,7 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
     }
     setPreparing(true);
     try {
-      const dataUrl = await preparePhoto(file);
+      const dataUrl = await preparePhoto(file, ASSET_LIMITS);
       if (!current.current.active || generation !== selection.current) return;
       if (current.current.version !== version)
         throw new Error(

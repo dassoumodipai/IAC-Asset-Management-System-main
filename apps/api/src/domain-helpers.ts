@@ -39,6 +39,7 @@ export const statuses = [
   'Under Verification',
   'Sold',
 ] as const;
+export const NON_REPORTABLE_STATUSES = ['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen'] as const;
 export const terminal = new Set(['Retired', 'Disposed', 'Sold']);
 export const assetInput = z
   .object({
@@ -90,6 +91,10 @@ export const ticketInput = z
     description: text(),
     category: text(100),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+    photos: z
+      .array(z.string().max(Math.ceil((400 * 1024) / 3) * 4 + 23))
+      .max(3)
+      .optional(),
   })
   .strict();
 export const assignInput = z.object({ userId: uuid, note: optionalText(5000) }).strict();
@@ -145,6 +150,7 @@ export function requestPage(query: any, fields: string[]) {
         ownerId: uuid.optional(),
         entityType: z.string().max(100).optional(),
         entityId: uuid.optional(),
+        labelPrinted: z.enum(['no']).optional(),
       })
       .strict(),
     query,

@@ -130,6 +130,10 @@ async function mockApi(page: Page, { admin = false, failFirstCommit = false } = 
         nextCursor: url.searchParams.get('cursor') ? null : 'synthetic-page-2',
       });
     }
+    if (method === 'GET' && /^\/api\/v1\/assets\/[^/]+$/.test(path)) {
+      const asset = assets.find((a) => a.id === path.split('/').pop());
+      return json(asset ?? { error: { code: 'NOT_FOUND', message: 'Asset not found' } }, asset ? 200 : 404);
+    }
     if (method === 'GET' && path === `/api/v1/tickets/${ticketId}`) return json(state.ticket);
     if (method === 'GET' && path === `/api/v1/tickets/${ticketId}/updates`)
       return json({ items: [], nextCursor: null });
@@ -448,8 +452,9 @@ test('Employee exports all assigned records without private columns and imports 
   await expect(page.getByLabel('Subject', { exact: true })).toHaveValue(
     'Synthetic imported request',
   );
-  await expect(page.getByLabel('Related asset (optional)', { exact: true })).toHaveValue(
-    assets[0].id,
+  // Check the select's displayed value (the trigger button shows the selected option's label)
+  await expect(page.getByLabel('Related asset (optional)', { exact: true })).toContainText(
+    assets[0].assetCode,
   );
   expect(state.writes).toEqual([]);
   await page.getByRole('button', { name: 'Submit ticket →', exact: true }).click();

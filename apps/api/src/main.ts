@@ -61,7 +61,10 @@ class ApiExceptionFilter implements ExceptionFilter {
     } else if ((error as any)?.type === 'entity.too.large') {
       status = 413;
       code = 'BODY_TOO_LARGE';
-      message = 'Request exceeds the 64 KB limit';
+      message =
+        (error as any).limit > 64 * 1024
+          ? 'Request exceeds the 1.5 MB limit'
+          : 'Request exceeds the 64 KB limit';
     } else if ((error as any)?.type === 'entity.parse.failed') {
       status = 400;
       code = 'BAD_REQUEST';
@@ -111,6 +114,16 @@ export async function createApp(): Promise<INestApplication> {
     allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'If-Match', 'Idempotency-Key'],
     exposedHeaders: ['ETag', 'X-Request-Id'],
   });
+  app.use('/api/v1/tickets', (req: Request, res: Response, next: () => void) =>
+    req.method === 'POST' &&
+    req.path === '/' &&
+    req.headers.origin === configuration().origin &&
+    (req.headers.cookie || '')
+      .split(';')
+      .some((c) => c.trim().startsWith(`${configuration().sessionCookie}=`))
+      ? json({ limit: '1536kb' })(req, res, next)
+      : next(),
+  );
   app.use(json({ limit: '64kb' }));
   app.use(cookieParser());
   app.use(csrfProtection);

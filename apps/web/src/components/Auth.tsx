@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, PropsWithChildren } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, captureFragmentToken, resetCsrf } from '../api';
 import { useSession } from '../session';
+import { takeReturnTo } from '../return-to';
 import { ErrorNotice, Field, Loading } from './ui';
 import { BrandMark } from './BrandMark';
 // Capture at module load, before any render or analytics. Link tokens never enter browser storage.
@@ -59,7 +60,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
     await client.cancelQueries();
     client.removeQueries({ predicate: (query) => query.queryKey[0] !== 'session' });
     await refresh();
-    navigate('/dashboard', { replace: true });
+    navigate(takeReturnTo(), { replace: true });
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,7 +75,6 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
             ? { challengeToken: challenge, code: fields.code }
             : { challengeToken: challenge, code: fields.code },
         });
-        setChallenge('');
         await signedIn();
       } else if (mode === 'login') {
         const result = await api<LoginResult>('/auth/login', {
@@ -307,6 +307,32 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
     </AccessLayout>
   );
 }
+function ReturnNavigate() {
+  const navigate = useNavigate();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current) return;
+    done.current = true;
+    navigate(takeReturnTo(), { replace: true });
+  }, [navigate]);
+  return null;
+}
+function ContinueLink({ disabled = false }: { disabled?: boolean }) {
+  const navigate = useNavigate();
+  return (
+    <a
+      href="/dashboard"
+      className={`button ${disabled ? 'disabled' : ''}`}
+      aria-disabled={disabled}
+      onClick={(event) => {
+        event.preventDefault();
+        if (!disabled) navigate(takeReturnTo());
+      }}
+    >
+      Continue to workspace
+    </a>
+  );
+}
 export function AccessScreen() {
   const { user, loading, error, refresh } = useSession();
   const [accepted, setAccepted] = useState(false);
@@ -321,7 +347,7 @@ export function AccessScreen() {
     user.portalAcceptedAt &&
     user.portalNoticeVersion === (user.currentNoticeVersion ?? '1')
   )
-    return <Navigate to="/dashboard" replace />;
+    return <ReturnNavigate />;
   async function submit(event: FormEvent) {
     event.preventDefault();
     setPending(true);
@@ -463,24 +489,13 @@ export function SecurityScreen() {
               />
               I have saved these codes securely.
             </label>
-            <Link
-              to={saved ? '/dashboard' : '#'}
-              className={`button ${saved ? '' : 'disabled'}`}
-              aria-disabled={!saved}
-              onClick={(event) => {
-                if (!saved) event.preventDefault();
-              }}
-            >
-              Continue to workspace
-            </Link>
+            <ContinueLink disabled={!saved} />
           </>
         ) : user.mfaEnrolled && !user.mfaEnrollmentRequired ? (
           <div className="notice success">
             <strong>Authenticator enabled</strong>
             <p>Your account uses two-step verification.</p>
-            <Link className="button" to="/dashboard">
-              Continue to workspace
-            </Link>
+            <ContinueLink />
           </div>
         ) : uri ? (
           <form onSubmit={confirm}>

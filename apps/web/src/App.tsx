@@ -1,30 +1,57 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, resetCsrf } from './api';
 import { useSession, hasRole, isStaff } from './session';
 import { AuthScreen, AccessScreen, SecurityScreen } from './components/Auth';
 import { AssetList, AssetDetail, AssetEditor, AssignmentForm } from './components/Assets';
+import { ScanPage } from './components/Scan';
+import { LabelPrintPage } from './components/Labels';
+import { rememberReturnTo, clearReturnTo } from './return-to';
+import { InstallMenuItem, IosInstallTip, OfflineScreen } from './components/Pwa';
+import { ScanButton } from './components/Scanner';
 import { TicketForm, TicketList, TicketDetail } from './components/Tickets';
 import { UserDashboard } from './components/Dashboards';
 import { UserAdmin, AuditView, ImportsView, NotificationSettings } from './components/Admin';
 import { Empty, ErrorNotice, Loading } from './components/ui';
 import { BrandMark } from './components/BrandMark';
+import { PageTransition } from './components/PageTransition';
 import { MasterControl } from './components/MasterControl';
 function Guard({ admin = false }: { admin?: boolean }) {
   const { user, loading, error } = useSession();
+  const location = useLocation();
+  const remember = () => rememberReturnTo(location.pathname + location.search);
   if (loading) return <Loading />;
-  if (error) return <ErrorNotice error={error} retry={() => window.location.reload()} />;
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.enrollmentOnly || user.mfaRequired || user.mfaEnrollmentRequired)
+  if (error) {
+    if (!navigator.onLine) {
+      return (
+        <div
+          role="alert"
+          className="m-4 rounded-lg border border-sheet-edge bg-white p-6 text-center text-ink"
+        >
+          You're offline. Connect to the internet to scan or raise a ticket.
+        </div>
+      );
+    }
+    return <ErrorNotice error={error} retry={() => window.location.reload()} />;
+  }
+  if (!user) {
+    remember();
+    return <Navigate to="/login" replace />;
+  }
+  if (user.enrollmentOnly || user.mfaRequired || user.mfaEnrollmentRequired) {
+    remember();
     return <Navigate to="/security" replace />;
+  }
   if (
     !user.emailVerifiedAt ||
     !user.portalAcceptedAt ||
     user.portalNoticeVersion !== (user.currentNoticeVersion ?? '1')
-  )
+  ) {
+    remember();
     return <Navigate to="/access" replace />;
+  }
   if (admin && !hasRole(user, 'ADMIN'))
     return (
       <Empty title="Admin access required">Your account does not have access to this area.</Empty>
@@ -128,6 +155,7 @@ function Shell() {
     try {
       await api('/auth/logout', { method: 'POST', body: {} });
       resetCsrf();
+      clearReturnTo();
       client.clear();
       window.location.assign('/login');
     } catch (error) {
@@ -172,6 +200,12 @@ function Shell() {
           {hasRole(user, 'ADMIN') ? (
             <>
               <p className="nav-label">Administration</p>
+              <NavLink to="/assets/labels">
+                <span className="nav-icon">
+                  <NavIcon name="assets" />
+                </span>
+                Print labels
+              </NavLink>
               <NavLink to="/master-control">
                 <span className="nav-icon">
                   <NavIcon name="master" />
@@ -233,6 +267,8 @@ function Shell() {
               <small>{user?.roles.map((role) => role.replace('_', ' ')).join(' · ')}</small>
             </span>
           </Link>
+          <ScanButton />
+          <InstallMenuItem />
           <button
             className="button text small"
             type="button"
@@ -244,7 +280,9 @@ function Shell() {
         </header>
         <main id="main" tabIndex={-1}>
           {logoutError ? <ErrorNotice error={logoutError} /> : null}
+          <OfflineScreen />
           <Outlet />
+          <IosInstallTip />
           <footer className="page-footer">
             IAC Patrons Foundation<span>Asset Management Platform · v0.1</span>
           </footer>
@@ -287,56 +325,61 @@ function Profile() {
 }
 export function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<AuthScreen key="login" mode="login" />} />
-      <Route path="/register" element={<AuthScreen key="register" mode="register" />} />
-      <Route path="/forgot-password" element={<AuthScreen key="forgot" mode="forgot" />} />
-      <Route path="/reset-password" element={<AuthScreen key="reset" mode="reset" />} />
-      <Route path="/verify-email" element={<AuthScreen key="verify" mode="verify" />} />
-      <Route path="/invite" element={<AuthScreen key="invite" mode="invite" />} />
-      <Route path="/access" element={<AccessScreen />} />
-      <Route path="/security" element={<SecurityScreen />} />
-      <Route element={<Guard />}>
-        <Route element={<Shell />}>
-          <Route path="/dashboard" element={<UserDashboard />} />
-          <Route path="/assets" element={<AssetList />} />
-          <Route path="/assets/:id" element={<AssetDetail />} />
-          <Route path="/tickets" element={<TicketList />} />
-          <Route path="/tickets/new" element={<TicketForm />} />
-          <Route path="/tickets/:id" element={<TicketDetail />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route element={<Guard admin />}>
-            <Route
-              path="/assignments/new"
-              element={<AssetList key="assignment" assignmentMode />}
-            />
-            <Route path="/assets/new" element={<AssetEditor />} />
-            <Route path="/assets/:id/edit" element={<AssetEditor />} />
-            <Route path="/assets/:id/assign" element={<AssignmentForm />} />
-            <Route path="/master-control" element={<MasterControl />} />
-            <Route path="/admin/users" element={<UserAdmin />} />
-            <Route path="/admin/imports" element={<ImportsView />} />
-            <Route path="/admin/audit" element={<AuditView />} />
-            <Route path="/admin/notifications" element={<NotificationSettings />} />
+    <>
+      <PageTransition />
+      <Routes>
+        <Route path="/login" element={<AuthScreen key="login" mode="login" />} />
+        <Route path="/register" element={<AuthScreen key="register" mode="register" />} />
+        <Route path="/forgot-password" element={<AuthScreen key="forgot" mode="forgot" />} />
+        <Route path="/reset-password" element={<AuthScreen key="reset" mode="reset" />} />
+        <Route path="/verify-email" element={<AuthScreen key="verify" mode="verify" />} />
+        <Route path="/invite" element={<AuthScreen key="invite" mode="invite" />} />
+        <Route path="/access" element={<AccessScreen />} />
+        <Route path="/security" element={<SecurityScreen />} />
+        <Route element={<Guard />}>
+          <Route element={<Shell />}>
+            <Route path="/dashboard" element={<UserDashboard />} />
+            <Route path="/assets" element={<AssetList />} />
+            <Route path="/a/:assetCode" element={<ScanPage />} />
+            <Route path="/assets/:id" element={<AssetDetail />} />
+            <Route path="/tickets" element={<TicketList />} />
+            <Route path="/tickets/new" element={<TicketForm />} />
+            <Route path="/tickets/:id" element={<TicketDetail />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route element={<Guard admin />}>
+              <Route
+                path="/assignments/new"
+                element={<AssetList key="assignment" assignmentMode />}
+              />
+              <Route path="/assets/new" element={<AssetEditor />} />
+              <Route path="/assets/labels" element={<LabelPrintPage />} />
+              <Route path="/assets/:id/edit" element={<AssetEditor />} />
+              <Route path="/assets/:id/assign" element={<AssignmentForm />} />
+              <Route path="/master-control" element={<MasterControl />} />
+              <Route path="/admin/users" element={<UserAdmin />} />
+              <Route path="/admin/imports" element={<ImportsView />} />
+              <Route path="/admin/audit" element={<AuditView />} />
+              <Route path="/admin/notifications" element={<NotificationSettings />} />
+            </Route>
           </Route>
         </Route>
-      </Route>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route
-        path="*"
-        element={
-          <Empty
-            title="Page not found"
-            action={
-              <Link className="button" to="/dashboard">
-                Back to workspace
-              </Link>
-            }
-          >
-            This page is not available.
-          </Empty>
-        }
-      />
-    </Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="*"
+          element={
+            <Empty
+              title="Page not found"
+              action={
+                <Link className="button" to="/dashboard">
+                  Back to workspace
+                </Link>
+              }
+            >
+              This page is not available.
+            </Empty>
+          }
+        />
+      </Routes>
+    </>
   );
 }

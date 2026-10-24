@@ -251,10 +251,21 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
       notifications.map((r) => r.recipient).sort(),
       [employee.email, admin.email, itAdmin.email].sort(),
     );
+    const reported = await service.createTicket(request(other), {
+      assetId: asset.id,
+      subject: 'Non-holder report',
+      description: 'Any staff member may report an in-service asset',
+      category: 'HARDWARE',
+      priority: 'LOW',
+    });
+    const [link] = await db.query('SELECT assignment_at_creation_id FROM tickets WHERE id=$1', [
+      reported.id,
+    ]);
+    assert.equal(link.assignment_at_creation_id, null);
     await assert.rejects(
       service.createTicket(request(other), {
-        assetId: asset.id,
-        subject: 'Wrong owner',
+        assetId: randomUUID(),
+        subject: 'Unknown asset',
         description: 'Must not link',
         category: 'HARDWARE',
         priority: 'LOW',

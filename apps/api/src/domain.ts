@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Post,
   Patch,
   Put,
@@ -13,6 +14,7 @@ import {
   Inject,
   UseGuards,
   UnprocessableEntityException,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
@@ -282,6 +284,16 @@ export class DomainController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return etag(res, await this.service.createTicket(req, body));
+  }
+  @Header('Cache-Control', 'private, no-store')
+  @Get('tickets/:id/photos/:position')
+  ticketPhoto(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Param('position') position: string,
+  ) {
+    if (!/^[1-3]$/.test(position)) throw new NotFoundException();
+    return this.service.ticketPhoto(req, id, Number(position));
   }
   @Get('tickets/:id/updates') updates(
     @Req() req: AuthRequest,

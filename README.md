@@ -59,6 +59,16 @@ To add a laptop picture, open the asset as an Admin, find **Asset picture**, cho
 
 Apply migration 005 with `npm run db:migrate` when updating an existing installation. Production migration owners must also reapply `infra/runtime-grants.sql`; photos are included in database backup and retention procedures. No public upload directory or external image host is required.
 
+## QR labels and scan-to-report
+
+Each asset has a QR label that opens `/a/<Asset ID>` in this portal. **Printing (Admin):** open **Print labels**, filter and select assets (**Not printed yet** finds new ones), choose A4 24-up, A4 14-up or a 50 x 25 mm thermal roll, set **Start at label #** to reuse a partly used sheet, then **Print** at 100% scale (no fit-to-page). After printing, choose **Yes, record print** so the catalog shows when each label was last printed. Up to 500 labels per run.
+
+**Scanning:** staff can use the phone camera app or the in-app **Scan** button (falls back to typing the asset ID when the camera is unavailable). Signed-out users sign in first and return to the asset. The scan page shows the asset and **Report a problem**, which opens a ticket for that asset with up to 3 photos (resized on the device, metadata removed). Retired, lost or stolen assets cannot be reported from the scan page.
+
+**Installing the app:** the portal is an installable web app. On Android Chrome use **Install app** in the top bar; on iPhone Safari use Share, then **Add to Home Screen**. The camera needs HTTPS (or localhost). The app needs a network connection; API responses are never cached offline.
+
+Apply migration 008 with `npm run db:migrate` when updating an existing installation. Production migration owners must also reapply `infra/runtime-grants.sql`; ticket photos and label print history are included in database backup and retention procedures.
+
 ## Gmail SMTP setup
 
 Use the private interactive helper for an approved Gmail/Google Workspace sender. Run `npm run email:gmail -- prepare` when no private draft exists, then `npm run email:gmail -- verify` to enter the Google app password in a hidden prompt and check authentication without sending mail. An existing prepared draft can go straight to verification. Activation is explicit and changes only SMTP settings; it does not restart the worker. See [docs/GMAIL_SMTP.md](docs/GMAIL_SMTP.md) for Google requirements, private files, activation and reachable invitation links.

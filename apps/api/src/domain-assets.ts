@@ -40,6 +40,8 @@ export class AssetDomain extends MasterDomain {
         values.push(p[key]);
         where.push(`a.${column}=$${values.length}`);
       }
+    if (p.labelPrinted && admin(req.user))
+      where.push('NOT EXISTS(SELECT 1 FROM asset_label_prints lp WHERE lp.asset_id=a.id)');
     if (p.q) {
       values.push(p.q);
       where.push(
@@ -52,7 +54,7 @@ export class AssetDomain extends MasterDomain {
     }
     values.push(p.limit + 1);
     const rows = await this.db.query(
-      `SELECT ${assetColumns(req.user)} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
+      `SELECT ${assetColumns(req.user)}${admin(req.user) ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
       values,
     );
     const result = page(rows, p.limit, ['asset_code', 'id']);

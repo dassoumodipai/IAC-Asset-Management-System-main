@@ -1,7 +1,12 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { AssetDomain } from './domain-assets';
+import { sanitizeImage, TICKET_PHOTO } from './image-sanitize';
 import { AuthRequest, requireRole, assertVersion } from './security';
 import {
   camel,
@@ -9,6 +14,7 @@ import {
   id,
   idempotent,
   insertObject,
+  NON_REPORTABLE_STATUSES,
   page,
   parse,
   requestPage,
@@ -38,7 +44,7 @@ export class TicketDomain extends AssetDomain {
     const row = found(
       (
         await this.db.query(
-          `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''} FROM tickets t WHERE t.id=$1 AND ${scope}${lock ? ' FOR UPDATE OF t' : ''}`,
+          `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''},(SELECT count(*)::int FROM ticket_photos p WHERE p.ticket_id=t.id) AS photo_count FROM tickets t WHERE t.id=$1 AND ${scope}${lock ? ' FOR UPDATE OF t' : ''}`,
           values,
           c,
         )
@@ -83,23 +89,37 @@ export class TicketDomain extends AssetDomain {
     );
   }
   async createTicket(req: AuthRequest, body: unknown) {
-    const data = parse(ticketInput, body);
-    return idempotent(this.db, req, 'POST /tickets', data, async (c) => {
+    const { photos = [], ...data } = parse(ticketInput, body);
+    // Sanitize before the transaction so invalid photos never take row locks.
+    // Process sequentially to cap peak memory at one large image at a time.
+    const images: Awaited<ReturnType<typeof sanitizeImage>>[] = [];
+    for (const p of photos) {
+      images.push(await sanitizeImage(p, TICKET_PHOTO));
+    }
+    return idempotent(this.db, req, 'POST /tickets', { ...data, photos }, async (c) => {
       await validateReference(this.db, 'TICKET_CATEGORY', data.category, c, 'category');
       await validateReference(this.db, 'TICKET_PRIORITY', data.priority, c, 'priority');
       let assignment: any = null;
       if (data.assetId) {
         // Serialize custody snapshot with return/reassign so the recorded assignment was current.
-        await this.db.query('SELECT id FROM assets WHERE id=$1 FOR UPDATE', [data.assetId], c);
-        assignment = found(
+        const [asset] = await this.db.query(
+          'SELECT status FROM assets WHERE id=$1 FOR UPDATE',
+          [data.assetId],
+          c,
+        );
+        found(asset);
+        if ((NON_REPORTABLE_STATUSES as readonly string[]).includes(asset.status))
+          throw new UnprocessableEntityException(
+            'This asset is not in service and cannot be reported',
+          );
+        assignment =
           (
             await this.db.query(
               'SELECT id FROM assignments WHERE asset_id=$1 AND user_id=$2 AND ended_at IS NULL FOR SHARE',
               [data.assetId, req.user.id],
               c,
             )
-          )[0],
-        );
+          )[0] || null;
       }
       if (data.relatedTicketId) await this.ticket(req, data.relatedTicketId, c);
       const row = await insertObject(
@@ -108,6 +128,12 @@ export class TicketDomain extends AssetDomain {
         { ...data, reporterId: req.user.id, assignmentAtCreationId: assignment?.id || null },
         c,
       );
+      for (const [i, image] of images.entries())
+        await this.db.query(
+          "INSERT INTO ticket_photos(ticket_id,position,content,mime_type,sha256,width,height,created_by) VALUES($1,$2,$3,'image/jpeg',$4,$5,$6,$7)",
+          [row.id, i + 1, image.content, image.sha256, image.width, image.height, req.user.id],
+          c,
+        );
       await this.db.query(
         "INSERT INTO ticket_updates(ticket_id,actor_id,kind,visibility) VALUES($1,$2,'CREATED','PUBLIC')",
         [row.id, req.user.id],
@@ -117,6 +143,7 @@ export class TicketDomain extends AssetDomain {
         assetId: data.assetId || null,
         category: data.category,
         priority: data.priority,
+        photoCount: images.length,
       });
       const recipients = [...new Set([req.user.email, ...(await this.staffRecipients(c))])];
       await this.db.notify(c, `ticket:${row.id}:created`, 'TICKET_CREATED', recipients, {
@@ -125,6 +152,18 @@ export class TicketDomain extends AssetDomain {
       });
       return { ...(await this.ticket(req, row.id, c)), notificationState: 'QUEUED' };
     });
+  }
+  async ticketPhoto(req: AuthRequest, ticketId: string, position: number) {
+    await this.ticket(req, ticketId);
+    const row = found(
+      (
+        await this.db.query(
+          'SELECT content,mime_type FROM ticket_photos WHERE ticket_id=$1 AND position=$2',
+          [ticketId, position],
+        )
+      )[0],
+    );
+    return { dataUrl: `data:${row.mime_type};base64,${row.content.toString('base64')}` };
   }
   async updates(req: AuthRequest, ticketId: string, query: any) {
     const ticket = await this.ticket(req, ticketId);

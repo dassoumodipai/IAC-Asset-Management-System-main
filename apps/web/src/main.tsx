@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import { UpdatePrompt } from './components/Pwa';
 import { SessionProvider } from './session';
 import './tailwind.css';
 import './styles.css';
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <SessionProvider>
           <App />
+          <UpdatePrompt />
         </SessionProvider>
       </BrowserRouter>
     </QueryClientProvider>

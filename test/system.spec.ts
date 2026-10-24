@@ -160,8 +160,10 @@ test('employee custody and support workflow through real browser and API', async
   const ownAsset = await mine.json();
   expect(ownAsset).not.toHaveProperty('purchaseCost');
   expect(ownAsset).not.toHaveProperty('residualValue');
-  await page.goto('/tickets/new');
-  await page.getByLabel('Related asset (optional)').selectOption(asset.id);
+await page.goto('/tickets/new');
+  const assetSelect = page.getByLabel('Related asset (optional)', { exact: true });
+  await assetSelect.click();
+  await page.getByRole('option', { name: new RegExp(asset.assetCode) }).click();
   await page.getByLabel('Subject', { exact: true }).fill(`Charging issue ${suffix}`);
   await page
     .getByLabel('What happened?')
@@ -239,22 +241,27 @@ test('Admin creates and assigns an asset and handles a ticket through the UI', a
 }) => {
   const context = await browser.newContext({ storageState: await admin.storageState() });
   const page = await context.newPage();
-  await page.goto('/assets/new');
+await page.goto('/assets/new');
   await page.getByLabel('Description', { exact: true }).fill(`Admin UI laptop ${suffix}`);
-  const type = page.getByLabel('Asset type', { exact: true });
-  if ((await type.evaluate((e) => e.tagName)) === 'SELECT') await type.selectOption('Laptop');
-  else await type.fill('Laptop');
-  await page.getByLabel('Category', { exact: true }).selectOption('IT Hardware');
-  await page.getByLabel('Ownership type', { exact: true }).selectOption('Owned');
-  await page.getByLabel('Condition', { exact: true }).selectOption('Good');
-  await page.getByLabel('Risk level', { exact: true }).selectOption('Low');
+  await page.getByLabel('Asset type', { exact: true }).click();
+  await page.locator('#assetType ~ ul').getByRole('option', { name: 'Laptop' }).first().click();
+  await page.getByLabel('Category', { exact: true }).click();
+  await page.locator('#category ~ ul').getByRole('option', { name: 'IT Hardware' }).first().click();
+  await page.getByLabel('Ownership type', { exact: true }).click();
+  await page.locator('#ownershipType ~ ul').getByRole('option', { name: 'Owned' }).first().click();
+  await page.getByLabel('Condition', { exact: true }).click();
+  await page.locator('#condition ~ ul').getByRole('option', { name: 'Good' }).first().click();
+  await page.getByLabel('Risk level', { exact: true }).click();
+  await page.locator('#riskLevel ~ ul').getByRole('option', { name: 'Low' }).first().click();
   await page.getByRole('button', { name: 'Create asset', exact: true }).click();
   await expect(page).toHaveURL(/assets\/[a-f0-9-]+/);
   await expect(
     page.getByRole('heading', { name: `Admin UI laptop ${suffix}`, exact: true }),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'Assign asset', exact: true }).click();
-  await page.getByLabel('Approved employee').selectOption(ids.employee);
+await page.getByRole('link', { name: 'Assign asset', exact: true }).click();
+  const empSelect = page.getByLabel('Approved employee');
+  await empSelect.click();
+  await page.getByRole('option', { name: /Test employee/ }).first().click();
   await page.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
   await expect(page).toHaveURL(/assets\/[a-f0-9-]+/);
   await expect(page.getByText('pending', { exact: true }).first()).toBeVisible();
@@ -330,15 +337,22 @@ test('Admin manages masters and asset forms retain historical selections', async
     expect(department).toBeTruthy();
     expect(location).toBeTruthy();
 
-    await page.goto('/assets/new');
+await page.goto('/assets/new');
     await page.getByLabel('Description', { exact: true }).fill(`Master catalog device ${suffix}`);
-    await page.getByLabel('Category', { exact: true }).selectOption({ label: categoryLabel });
-    await page.getByLabel('Asset type', { exact: true }).selectOption('Laptop');
-    await page.getByLabel('Ownership type', { exact: true }).selectOption('Owned');
-    await page.getByLabel('Condition', { exact: true }).selectOption('Good');
-    await page.getByLabel('Risk level', { exact: true }).selectOption('Low');
-    await page.getByLabel('Department', { exact: true }).selectOption(department.id);
-    await page.getByLabel('Location', { exact: true }).selectOption(location.id);
+    await page.getByLabel('Category', { exact: true }).click();
+    await page.locator('#category ~ ul').getByRole('option', { name: categoryLabel }).first().click();
+    await page.getByLabel('Asset type', { exact: true }).click();
+    await page.locator('#assetType ~ ul').getByRole('option', { name: 'Laptop' }).first().click();
+    await page.getByLabel('Ownership type', { exact: true }).click();
+    await page.locator('#ownershipType ~ ul').getByRole('option', { name: 'Owned' }).first().click();
+    await page.getByLabel('Condition', { exact: true }).click();
+    await page.locator('#condition ~ ul').getByRole('option', { name: 'Good' }).first().click();
+    await page.getByLabel('Risk level', { exact: true }).click();
+    await page.locator('#riskLevel ~ ul').getByRole('option', { name: 'Low' }).first().click();
+    await page.getByLabel('Department', { exact: true }).click();
+    await page.locator('#departmentId ~ ul').getByRole('option', { name: department.name }).first().click();
+    await page.getByLabel('Location', { exact: true }).click();
+    await page.locator('#locationId ~ ul').getByRole('option', { name: location.name }).first().click();
     await page.getByRole('button', { name: 'Create asset', exact: true }).click();
     await expect(page).toHaveURL(/assets\/[a-f0-9-]+$/);
     const assetId = page.url().split('/').pop()!;
@@ -350,16 +364,17 @@ test('Admin manages masters and asset forms retain historical selections', async
     await page.getByLabel('Active for new records', { exact: true }).uncheck();
     await page.getByLabel('Change reason', { exact: true }).fill('Retire test category without changing asset history');
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-    await expect(page.getByLabel('Change reason', { exact: true })).toHaveCount(0);
-    await expect(page.getByLabel('Availability', { exact: true })).toHaveValue('active');
+await expect(page.getByLabel('Change reason', { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Availability', { exact: true })).toContainText('Active only');
     await expect(page.getByRole('button', { name: `Edit ${categoryLabel}`, exact: true })).toHaveCount(0);
-    await page.getByLabel('Availability', { exact: true }).selectOption('inactive');
+    await page.getByLabel('Availability', { exact: true }).click();
+    await page.getByRole('option', { name: 'Inactive only' }).click();
     await expect(page.getByRole('button', { name: `Edit ${categoryLabel}`, exact: true })).toBeVisible();
     await page.goto('/assets/new');
     await expect(page.getByLabel('Category', { exact: true }).locator('option').filter({ hasText: categoryLabel })).toHaveCount(0);
 
-    await page.goto(`/assets/${assetId}/edit`);
-    await expect(page.getByLabel('Category', { exact: true })).toHaveValue(categoryCode);
+await page.goto(`/assets/${assetId}/edit`);
+    await expect(page.getByLabel('Category', { exact: true })).toContainText(categoryLabel);
     await page.getByLabel('Description', { exact: true }).fill(`Retained master device ${suffix}`);
     await page.getByLabel('Reason for this change', { exact: true }).fill('Unrelated edit keeps inactive historical category');
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();

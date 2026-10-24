@@ -87,7 +87,27 @@ test('runtime role can read application data but cannot erase inventory, mutate 
       await c.query('SELECT state FROM data_transfers WHERE id=$1', [transferId])
     ).rows;
     assert.equal(transferState, 'COMMITTED');
+    const [{ id: qrTicketId }] = (
+      await c.query(
+        `INSERT INTO tickets(reporter_id,subject,description,category,priority)
+         VALUES($1,'Synthetic QR ticket','Synthetic runtime permission check','HARDWARE','LOW') RETURNING id`,
+        [photoUserId],
+      )
+    ).rows;
+    await c.query(
+      `INSERT INTO ticket_photos(ticket_id,position,content,sha256,width,height,created_by)
+       VALUES($1,1,decode('ffd8ff00','hex'),repeat('a',64),10,10,$2)`,
+      [qrTicketId, photoUserId],
+    );
+    await c.query(
+      "INSERT INTO asset_label_prints(asset_id,layout,printed_by) VALUES($1,'A4_24',$2)",
+      [photoAssetId, photoUserId],
+    );
     for (const sql of [
+      'UPDATE ticket_photos SET position=1',
+      'DELETE FROM ticket_photos',
+      "UPDATE asset_label_prints SET layout='A4_14'",
+      'DELETE FROM asset_label_prints',
       'DELETE FROM assets WHERE false',
       'DELETE FROM data_transfers WHERE false',
       'DELETE FROM asset_photos WHERE false',

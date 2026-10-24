@@ -21,14 +21,18 @@ Base /api/v1. CamelCase JSON; PostgreSQL uses snake_case. Credentialed cookies, 
 | /users/:id/roles | PUT | Admin role replacement; existing sessions revoked |
 | /references | GET | Controlled vocabulary, departments, locations |
 | /references/:kind/:code | PUT | Admin compatibility route; same master allowlist, reason, version and fixed-workflow rules |
-| /assets | GET, POST | Scoped catalog; Admin creates |
+| /assets | GET, POST | Scoped catalog; Admin creates. Items include `lastLabelPrintedAt`; Admin filter `labelPrinted=no` lists assets never printed |
 | /assets/:id | GET, PATCH | Scoped detail, Admin edits with reason; immutable Asset ID |
 | /assets/:id/photo | GET, PUT | Same asset visibility for reads; Admin-only versioned photo replacement with reason |
+| /scan/:assetCode | GET | Any signed-in user; case-insensitive Asset ID. Minimal view `{id,assetCode,category,assetType,manufacturer,model,department,location,status,hasPhoto,reportable,canViewFull}`; `reportable` is false for retired, lost or stolen assets; `404` if unknown |
+| /scan/:assetCode/photo | GET | Same access as the scan view; `{dataUrl}` JPEG data URL or null |
+| /asset-labels/prints | POST | Admin; `{assetIds:[1-500 unique uuids],layout: A4_24, A4_14 or THERMAL_50x25}`; records one print per asset, audited, idempotent; returns `{recorded,printedAt}` |
 | /assets/:id/assignments, /assets/:id/reassign | POST | Admin atomic custody; key and asset If-Match |
 | /assignments/:id/return | POST | Admin ends custody with condition/reason/location |
 | /assignments/:id/acknowledgement | POST | Current assigned Employee accepts/disputes; assignment If-Match |
-| /tickets | GET, POST | Own tickets or staff queue; optional own current asset |
+| /tickets | GET, POST | Own tickets or staff queue; optional own current asset; optional `photos` (up to 3 JPEG/PNG data URLs, re-encoded server-side) |
 | /tickets/:id | GET | Reporter or staff |
+| /tickets/:id/photos/:n | GET | Reporter or staff; `n` is 1-based; `{dataUrl}`; ticket detail carries `photoCount` |
 | /tickets/:id/updates | GET, POST | Public reporter updates; staff may add/read internal notes |
 | /tickets/:id/owner, /tickets/:id/status | PATCH | Staff; owner or Open/In Progress -> Completed with resolution |
 | /dashboard | GET | Role-filtered assets/tickets/unknownCounts/import counts |

@@ -57,6 +57,7 @@ export interface Asset {
   insuranceExpiry?: string;
   nextAuditDate?: string;
   lastAuditDate?: string;
+  lastLabelPrintedAt?: string | null;
   remarks?: string;
   financePending?: boolean;
   currentAssignment?: Assignment | null;
@@ -88,6 +89,7 @@ export interface Ticket {
   createdAt?: string;
   updatedAt?: string;
   resolution?: string;
+  photoCount?: number;
   updates?: TimelineEvent[];
 }
 export interface ReferenceValue {
@@ -158,4 +160,18 @@ export interface ImportBatch {
     normalizedFields?: unknown;
     rawFields?: Record<string, unknown>;
   }[];
+}
+export interface ScanView {
+  id: string;
+  assetCode: string;
+  category: string;
+  assetType: string;
+  manufacturer: string | null;
+  model: string | null;
+  department: string | null;
+  location: { site: string; floor: string | null; room: string | null } | null;
+  status: string;
+  hasPhoto: boolean;
+  reportable: boolean;
+  canViewFull: boolean;
 }

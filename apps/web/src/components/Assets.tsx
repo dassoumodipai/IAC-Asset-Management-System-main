@@ -21,6 +21,7 @@ import {
   Badge,
   Empty,
   ErrorNotice,
+  Checkbox,
   Field,
   Loading,
   LoadMore,
@@ -91,6 +92,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     status: assignmentMode ? 'In Store' : params.get('status') || undefined,
     category: params.get('category') || undefined,
     departmentId: params.get('departmentId') || undefined,
+    labelPrinted: params.get('labelPrinted') === 'no' ? 'no' : undefined,
   };
   const query = usePages<Asset>('/assets', filters);
   const loadedItems = query.data?.pages.flatMap((page) => page.items) ?? [];
@@ -200,19 +202,27 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             />
           </Field>
           {manage ? (
-            <Select
-              label="Department"
-              htmlFor="filter-department"
-              value={filters.departmentId ?? ''}
-              onChange={(value) => update('departmentId', value)}
-              options={[
-                { value: '', label: 'All departments' },
-                ...(refs.data?.departments.map((item) => ({
-                  value: item.id,
-                  label: `${item.name}${!item.active ? ' (inactive)' : ''}`,
-                })) || []),
-              ]}
-            />
+            <>
+              <Select
+                label="Department"
+                htmlFor="filter-department"
+                value={filters.departmentId ?? ''}
+                onChange={(value) => update('departmentId', value)}
+                options={[
+                  { value: '', label: 'All departments' },
+                  ...(refs.data?.departments.map((item) => ({
+                    value: item.id,
+                    label: `${item.name}${!item.active ? ' (inactive)' : ''}`,
+                  })) || []),
+                ]}
+              />
+              <Checkbox
+                label="Not printed yet"
+                className="filter-checkbox"
+                checked={filters.labelPrinted === 'no'}
+                onChange={(checked) => update('labelPrinted', checked ? 'no' : '')}
+              />
+            </>
           ) : null}
         </div>
         <ErrorNotice
@@ -233,6 +243,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                   <th>Status</th>
                   <th>Condition</th>
                   <th>Verification</th>
+                  {manage ? <th>Last label printed</th> : null}
                   <th>
                     <span className="sr-only">View</span>
                   </th>
@@ -259,6 +270,15 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                         <span className="muted">No custody</span>
                       )}
                     </td>
+                    {manage ? (
+                      <td>
+                        {asset.lastLabelPrintedAt ? (
+                          <span>{displayDate(asset.lastLabelPrintedAt, true)}</span>
+                        ) : (
+                          <span className="muted">Not printed</span>
+                        )}
+                      </td>
+                    ) : null}
                     <td>
                       <div className="actions">
                         {manage && canAssign(asset) ? (
@@ -276,6 +296,15 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                             aria-label={`Transfer ${asset.assetCode}`}
                           >
                             Transfer custody
+                          </Link>
+                        ) : null}
+                        {manage && !assignmentMode ? (
+                          <Link
+                            to={`/assets/labels?ids=${asset.id}`}
+                            className="table-link"
+                            aria-label={`Print label for ${asset.assetCode}`}
+                          >
+                            Print label
                           </Link>
                         ) : null}
                         <Link
@@ -415,6 +444,9 @@ export function AssetDetail() {
             <div className="actions">
               <Link className="button secondary" to={`/assets/${id}/edit`}>
                 Edit asset
+              </Link>
+              <Link className="button secondary" to={`/assets/labels?ids=${asset.id}`}>
+                Print label
               </Link>
               {canTransfer(asset) ? (
                 <Link className="button" to={`/assets/${id}/assign?transfer=1`}>
@@ -1369,10 +1401,7 @@ export function AssignmentForm() {
                 value={selectedEmployee ? userId : ''}
                 onChange={choose}
                 disabled={
-                  action.isPending ||
-                  employees.isPending ||
-                  !!employees.error ||
-                  !custodyAvailable
+                  action.isPending || employees.isPending || !!employees.error || !custodyAvailable
                 }
                 ariaDescribedBy="assignment-eligibility"
                 required

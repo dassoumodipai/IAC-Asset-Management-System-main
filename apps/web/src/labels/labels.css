@@ -1,0 +1,241 @@
+.label-sheet {
+  background: #fff;
+  color: #000;
+  position: relative;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  margin: 0 0 16px;
+  break-after: page;
+  overflow: hidden;
+}
+.label-cell {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 2.2mm;
+  padding: 1.5mm 2mm 1.5mm 3.4mm;
+  overflow: hidden;
+  outline: 0.1mm dashed #e2e8f0;
+  border-radius: 1.5mm;
+}
+/* Brand bar down the left edge */
+.label-cell::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1.3mm;
+  background: #1f4e78;
+}
+.label-qr {
+  position: relative;
+  flex: none;
+  line-height: 0;
+}
+.label-qr-code,
+.label-qr-code svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.label-qr-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24%;
+  height: 24%;
+  transform: translate(-50%, -50%);
+  padding: 0.35mm;
+  background: #fff;
+  border-radius: 0.8mm;
+  object-fit: contain;
+  box-sizing: border-box;
+}
+.label-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6mm;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.1;
+  color: #000;
+}
+.label-brand {
+  font-size: 5.5pt;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #1f4e78;
+}
+.label-text strong {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5pt;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.label-type {
+  font-size: 6pt;
+  color: #444;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.label-hint {
+  margin-top: 0.4mm;
+  font-size: 5.5pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #1f4e78;
+}
+/* 50 x 25 mm thermal: tighter type */
+.label-sheet[data-layout='THERMAL_50x25'] .label-cell {
+  gap: 1.6mm;
+  padding: 1.2mm 1.5mm 1.2mm 2.6mm;
+  border-radius: 0;
+}
+.label-sheet[data-layout='THERMAL_50x25'] .label-cell::before {
+  width: 1mm;
+}
+.label-sheet[data-layout='THERMAL_50x25'] .label-text strong {
+  font-size: 8.5pt;
+}
+.label-sheet[data-layout='THERMAL_50x25'] .label-brand,
+.label-sheet[data-layout='THERMAL_50x25'] .label-hint {
+  font-size: 5pt;
+}
+.label-sheet[data-layout='THERMAL_50x25'] .label-type {
+  font-size: 5.5pt;
+}
+/* 45.7 x 25.4 mm small stickers: compact type so the ID fits beside an 18 mm QR */
+.label-sheet[data-layout='A4_40'] .label-cell {
+  gap: 1.4mm;
+  padding: 1.2mm 1.4mm 1.2mm 2.4mm;
+  border-radius: 1mm;
+}
+.label-sheet[data-layout='A4_40'] .label-cell::before {
+  width: 0.9mm;
+}
+.label-sheet[data-layout='A4_40'] .label-text {
+  gap: 0.4mm;
+}
+.label-sheet[data-layout='A4_40'] .label-text strong {
+  font-size: 7.4pt;
+  letter-spacing: -0.04em;
+}
+.label-sheet[data-layout='A4_40'] .label-brand,
+.label-sheet[data-layout='A4_40'] .label-hint {
+  font-size: 4.6pt;
+}
+.label-sheet[data-layout='A4_40'] .label-type {
+  font-size: 5pt;
+}
+/* Keep the brand colours on paper */
+.label-sheet {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.label-print-confirm {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.table-scroll table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.table-scroll table th,
+.table-scroll table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table-scroll table th {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink-2);
+  text-align: left;
+  background: var(--frame);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.table-scroll table td {
+  font-size: 13px;
+  color: var(--ink);
+}
+.table-scroll table tr:hover {
+  background: rgba(31, 78, 120, 0.04);
+}
+.table-scroll table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--navy);
+  flex-shrink: 0;
+}
+.label-table-check {
+  width: 40px;
+  text-align: center;
+  padding: 0 8px;
+}
+.label-table-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--navy);
+}
+@media print {
+  .sidebar,
+  .topbar,
+  .page-footer,
+  .skip-link,
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body,
+  .app-shell,
+  .workspace,
+  main {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .label-sheet {
+    box-shadow: none;
+    margin: 0;
+  }
+  .label-cell {
+    outline: none;
+  }
+}
+
+@page a4 {
+  size: 210mm 297mm;
+  margin: 0;
+}
+@page thermal {
+  size: 50mm 25mm;
+  margin: 0;
+}
+.label-sheet[data-layout='A4_40'] {
+  page: a4;
+}
+.label-sheet[data-layout='A4_24'] {
+  page: a4;
+}
+.label-sheet[data-layout='A4_14'] {
+  page: a4;
+}
+.label-sheet[data-layout='THERMAL_50x25'] {
+  page: thermal;
+}

@@ -6,6 +6,7 @@ import { hasRole, isStaff, useSession } from '../session';
 import type { Asset, Ticket } from '../types';
 import { Badge, Empty, ErrorNotice, Loading, Metric, PageTitle, Panel } from './ui';
 import { useReferences, ReferenceBadge } from './References';
+import { AdminInsights } from './AdminInsights';
 interface Summary {
   role?: string;
   assets?: {
@@ -181,32 +182,7 @@ export function AdminDashboard() {
         }}
       />
       {summary.isPending ? <Loading /> : null}
-      <div className="metric-grid four">
-        <Metric
-          label="Total assets"
-          value={data?.assets?.total}
-          detail="Permanent records in your register"
-          to="/assets"
-        />
-        <Metric
-          label="Assigned assets"
-          value={data?.assets?.assigned}
-          detail="Current employee custody"
-          to="/assets?status=Assigned"
-        />
-        <Metric
-          label="Pending verification"
-          value={data?.assets?.pendingAcknowledgements}
-          detail="Awaiting employee confirmation"
-          to="/assets"
-        />
-        <Metric
-          label="Open support"
-          value={data?.tickets ? data.tickets.open + data.tickets.inProgress : undefined}
-          detail="Open and in-progress tickets"
-          to="/tickets"
-        />
-      </div>
+      <AdminInsights />
       <div className="dashboard-columns">
         <Panel title="What needs attention">
           <div className="attention-row">

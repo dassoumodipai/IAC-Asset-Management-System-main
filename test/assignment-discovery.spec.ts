@@ -225,17 +225,18 @@ test('Admin can discover assignment from the catalog, choose an In Store asset, 
   await expect(page).toHaveURL(new RegExp(`/assets/${assetId}/assign$`));
   const recipient = page.getByLabel('Approved employee', { exact: true });
   await expect(recipient).toBeVisible();
-  await expect(recipient.getByRole('option', { name: /Synthetic Recipient/ })).toBeAttached();
-  await expect(
-    recipient.getByRole('option', {
-      name: /Synthetic Unverified|Synthetic No Portal|Synthetic Disabled|Synthetic Staff Only/,
-    }),
-  ).toHaveCount(0);
   expect(state.userQueries[0]?.get('state')).toBe('ACTIVE');
   expect(state.userQueries[0]?.get('role')).toBe('EMPLOYEE');
   const confirm = page.getByRole('button', { name: 'Confirm assignment', exact: true });
   await expect(confirm).toBeDisabled();
-  await recipient.selectOption(employeeId);
+  await recipient.click();
+  await expect(page.getByRole('option', { name: /Synthetic Recipient/ })).toBeAttached();
+  await expect(
+    page.getByRole('option', {
+      name: /Synthetic Unverified|Synthetic No Portal|Synthetic Disabled|Synthetic Staff Only/,
+    }),
+  ).toHaveCount(0);
+  await page.getByRole('option', { name: /Synthetic Recipient/ }).click();
   await page
     .getByLabel('Handover note', { exact: true })
     .fill('Synthetic laptop issued after review');
@@ -266,10 +267,11 @@ test('Admin transfer excludes the current custodian and requires an explicit rea
   await page.getByRole('link', { name: `Transfer ${assignedAssetCode}`, exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Transfer custody', exact: true })).toBeVisible();
   const recipient = page.getByLabel('Approved employee', { exact: true });
-  await expect(recipient.getByRole('option', { name: /Synthetic Current Custodian/ })).toHaveCount(
+  await recipient.click();
+  await expect(page.getByRole('option', { name: /Synthetic Current Custodian/ })).toHaveCount(
     0,
   );
-  await recipient.selectOption(employeeId);
+  await page.getByRole('option', { name: /Synthetic Recipient/ }).click();
   const confirm = page.getByRole('button', { name: 'Confirm transfer', exact: true });
   await expect(confirm).toBeDisabled();
   await page
@@ -336,7 +338,9 @@ test('Background changes retain the chosen asset version and stale custody is re
   await page.clock.install();
   const state = await mockApi(page, { stale: true });
   await page.goto(`/assets/${assetId}/assign`);
-  await page.getByLabel('Approved employee', { exact: true }).selectOption(employeeId);
+  const recipient = page.getByLabel('Approved employee', { exact: true });
+  await recipient.click();
+  await page.getByRole('option', { name: /Synthetic Recipient/ }).click();
   state.assets[0].version = 8;
   await page.clock.fastForward(21000);
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
@@ -359,7 +363,8 @@ test('A recipient who loses portal eligibility during review cannot be submitted
   const state = await mockApi(page);
   await page.goto(`/assets/${assetId}/assign`);
   const recipient = page.getByLabel('Approved employee', { exact: true });
-  await recipient.selectOption(employeeId);
+  await recipient.click();
+  await page.getByRole('option', { name: /Synthetic Recipient/ }).click();
   const confirm = page.getByRole('button', { name: 'Confirm assignment', exact: true });
   await expect(confirm).toBeEnabled();
   state.users[0].portalAcceptedAt = null;

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
@@ -7,6 +7,7 @@ import { usePages, useAction } from '../hooks';
 import { hasRole, isStaff, useSession } from '../session';
 import type { Asset, Page, Ticket, TimelineEvent, User } from '../types';
 import { fetchAllPages } from '../transfer-files';
+import { TICKET_LIMITS, preparePhoto } from '../photo-prepare';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
 import {
   useReferences,
@@ -207,6 +208,126 @@ export function TicketList() {
     </>
   );
 }
+const MAX_PHOTOS = 3;
+const PHOTO_PATTERN = /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/=]+$/;
+function TicketPhotoPicker({
+  photos,
+  onChange,
+  disabled,
+}: {
+  photos: string[];
+  onChange: (next: string[]) => void;
+  disabled: boolean;
+}) {
+  const [errors, setErrors] = useState<string[]>([]);
+  const [preparing, setPreparing] = useState(false);
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const latest = useRef(photos);
+  latest.current = photos;
+  const full = photos.length >= MAX_PHOTOS;
+  async function add(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    setErrors([]);
+    if (!files.length) return;
+    setPreparing(true);
+    const failures: string[] = [];
+    const added: string[] = [];
+    for (const file of files) {
+      if (latest.current.length + added.length >= MAX_PHOTOS) {
+        failures.push(`${file.name}: You can attach up to ${MAX_PHOTOS} photos.`);
+        continue;
+      }
+      try {
+        added.push(await preparePhoto(file, TICKET_LIMITS));
+      } catch (caught) {
+        failures.push(
+          `${file.name}: ${caught instanceof Error ? caught.message : 'Could not use this photo.'}`,
+        );
+      }
+    }
+    onChange([...latest.current, ...added]);
+    setErrors(failures);
+    setPreparing(false);
+  }
+  return (
+    <fieldset className="photo-picker">
+      <legend>Photos (optional)</legend>
+      <p className="muted small-text">
+        Up to {MAX_PHOTOS} photos of the problem. Photos are resized on your device and location
+        data is removed.
+      </p>
+      <div className="actions">
+        <button
+          type="button"
+          className="button secondary"
+          disabled={disabled || full || preparing}
+          onClick={() => camera.current?.click()}
+        >
+          Take photo
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={disabled || full || preparing}
+          onClick={() => gallery.current?.click()}
+        >
+          Choose photo
+        </button>
+      </div>
+      <input
+        ref={camera}
+        type="file"
+        accept="image/jpeg,image/png"
+        capture="environment"
+        className="sr-only"
+        tabIndex={-1}
+        aria-label="Take photo"
+        disabled={disabled || full || preparing}
+        onChange={(event) => {
+          void add(event);
+        }}
+      />
+      <input
+        ref={gallery}
+        type="file"
+        accept="image/jpeg,image/png"
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        aria-label="Choose photo"
+        disabled={disabled || full || preparing}
+        onChange={(event) => {
+          void add(event);
+        }}
+      />
+      {preparing ? <Loading label="Preparing photo..." /> : null}
+      {errors.map((message) => (
+        <p key={message} className="notice danger" role="alert">
+          {message}
+        </p>
+      ))}
+      {photos.length ? (
+        <ul className="photo-previews">
+          {photos.map((photo, index) => (
+            <li key={photo.slice(-40) + index}>
+              <img src={photo} alt={`Attached photo ${index + 1}`} />
+              <button
+                type="button"
+                className="button text small"
+                disabled={disabled}
+                onClick={() => onChange(photos.filter((_, i) => i !== index))}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </fieldset>
+  );
+}
 export function TicketForm() {
   const refs = useReferences();
   const { user } = useSession();
@@ -219,6 +340,8 @@ export function TicketForm() {
   const [category, setCategory] = useState('HARDWARE');
   const [priority, setPriority] = useState('MEDIUM');
   const [validation, setValidation] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const scannedCode = params.get('asset') && params.get('assetId') ? params.get('asset') : null;
   const action = useAction<Ticket>();
   const eligible =
     assets.data?.pages
@@ -240,6 +363,7 @@ export function TicketForm() {
           description: description.trim(),
           category,
           priority,
+          ...(photos.length ? { photos } : {}),
           ...(params.get('relatedTicketId')
             ? { relatedTicketId: params.get('relatedTicketId') }
             : {}),
@@ -289,10 +413,7 @@ export function TicketForm() {
               if (typeof data.description === 'string') setDescription(data.description);
               if (typeof data.category === 'string') setCategory(data.category);
               if (typeof data.priority === 'string') setPriority(data.priority);
-              if (
-                typeof data.assetId === 'string' &&
-                (!data.assetId || eligible.some((item) => item.id === data.assetId))
-              )
+              if (!scannedCode && typeof data.assetId === 'string' && (!data.assetId || eligible.some((item) => item.id === data.assetId)))
                 setAssetId(data.assetId);
               setValidation('');
               action.reset();
@@ -311,36 +432,44 @@ export function TicketForm() {
                 {validation}
               </div>
             ) : null}
-            <Select
-              label="Related asset (optional)"
-              htmlFor="ticket-asset"
-              value={assetId}
-              onChange={setAssetId}
-              hint="Choose no asset for a portal access issue. Only currently assigned equipment is eligible."
-              options={[
-                { value: '', label: 'No asset / general support' },
-                ...(assetId && !eligible.some((asset) => asset.id === assetId)
-                  ? [{ value: assetId, label: 'Loading selected asset...', disabled: true }]
-                  : []),
-                ...eligible.map((asset) => ({
-                  value: asset.id,
-                  label: `${asset.assetCode} · ${asset.description}`,
-                })),
-              ]}
-            />
-            <ErrorNotice
-              error={assets.error}
-              retry={() => {
-                void assets.refetch();
-              }}
-            />
-            <LoadMore
-              available={assets.hasNextPage}
-              loading={assets.isFetchingNextPage}
-              onClick={() => {
-                void assets.fetchNextPage();
-              }}
-            />
+            {scannedCode ? (
+              <Field label="Asset" htmlFor="ticket-scanned-asset">
+                <input id="ticket-scanned-asset" value={scannedCode} readOnly />
+              </Field>
+            ) : (
+              <>
+                <Select
+                  label="Related asset (optional)"
+                  htmlFor="ticket-asset"
+                  value={assetId}
+                  onChange={setAssetId}
+                  hint="Choose no asset for a portal access issue. Only currently assigned equipment is eligible."
+                  options={[
+                    { value: '', label: 'No asset / general support' },
+                    ...(assetId && !eligible.some((asset) => asset.id === assetId)
+                      ? [{ value: assetId, label: 'Loading selected asset...', disabled: true }]
+                      : []),
+                    ...eligible.map((asset) => ({
+                      value: asset.id,
+                      label: `${asset.assetCode} · ${asset.description}`,
+                    })),
+                  ]}
+                />
+                <ErrorNotice
+                  error={assets.error}
+                  retry={() => {
+                    void assets.refetch();
+                  }}
+                />
+                <LoadMore
+                  available={assets.hasNextPage}
+                  loading={assets.isFetchingNextPage}
+                  onClick={() => {
+                    void assets.fetchNextPage();
+                  }}
+                />
+              </>
+            )}
             <Field label="Subject" htmlFor="ticket-subject">
               <input
                 id="ticket-subject"
@@ -387,6 +516,7 @@ export function TicketForm() {
                 required
               />
             </Field>
+            <TicketPhotoPicker photos={photos} onChange={setPhotos} disabled={action.isPending} />
             <div className="form-actions">
               <Link className="button secondary" to="/tickets">
                 Cancel
@@ -432,6 +562,64 @@ export function TicketForm() {
     </>
   );
 }
+function TicketPhotoThumb({
+  ticketId,
+  n,
+  onOpen,
+}: {
+  ticketId: string;
+  n: number;
+  onOpen: (photo: string) => void;
+}) {
+  const query = useQuery({
+    queryKey: ['ticket-photo', ticketId, n],
+    queryFn: ({ signal }) =>
+      api<{ dataUrl: string | null }>(`/tickets/${ticketId}/photos/${n}`, { signal }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const photo = query.data?.dataUrl;
+  if (query.isPending) return <li className="photo-thumb-pending">Loading photo {n}...</li>;
+  if (!photo || !PHOTO_PATTERN.test(photo))
+    return <li className="photo-thumb-pending">Photo {n} is unavailable.</li>;
+  return (
+    <li>
+      <button
+        type="button"
+        className="photo-thumb"
+        aria-label={`View photo ${n} full size`}
+        onClick={() => onOpen(photo)}
+      >
+        <img src={photo} alt={`Ticket photo ${n}`} loading="lazy" />
+      </button>
+    </li>
+  );
+}
+function TicketPhotos({ ticketId, count }: { ticketId: string; count: number }) {
+  const [open, setOpen] = useState<string>();
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element) return;
+    if (open && !element.open) element.showModal();
+    if (!open && element.open) element.close();
+  }, [open]);
+  return (
+    <div className="ticket-photos">
+      <h3>Photos ({count})</h3>
+      <ul className="photo-previews">
+        {Array.from({ length: Math.min(count, MAX_PHOTOS) }, (_, index) => (
+          <TicketPhotoThumb key={index} ticketId={ticketId} n={index + 1} onOpen={setOpen} />
+        ))}
+      </ul>
+      <dialog ref={dialog} className="photo-dialog" onClose={() => setOpen(undefined)}>
+        {open ? <img src={open} alt="Ticket photo, full size" /> : null}
+        <button type="button" className="button secondary" onClick={() => setOpen(undefined)}>
+          Close
+        </button>
+      </dialog>
+    </div>
+  );
+}
 export function TicketDetail() {
   const refs = useReferences();
   const { id } = useParams();
@@ -440,6 +628,11 @@ export function TicketDetail() {
   const query = useQuery({
     queryKey: ['ticket', id],
     queryFn: ({ signal }) => api<Ticket>(`/tickets/${id}`, { signal }),
+  });
+  const assetQuery = useQuery({
+    queryKey: ['asset', query.data?.assetId],
+    queryFn: ({ signal }) => api<Asset>(`/assets/${query.data?.assetId}`, { signal }),
+    enabled: !!query.data?.assetId,
   });
   const history = usePages<TimelineEvent>(`/tickets/${id}/updates`);
   const staffUsers = useQuery({
@@ -566,6 +759,9 @@ export function TicketDetail() {
         <div className="stack">
           <Panel title="Conversation">
             <div className="ticket-description preserve">{ticket.description}</div>
+            {ticket.photoCount ? (
+              <TicketPhotos ticketId={ticket.id} count={ticket.photoCount} />
+            ) : null}
             <ErrorNotice
               error={history.error}
               retry={() => {
@@ -676,7 +872,13 @@ export function TicketDetail() {
               </dd>
               <dt>Asset</dt>
               <dd>
-                {ticket.assetId ? (
+                {ticket.assetId && assetQuery.data ? (
+                  hasRole(user, 'ADMIN') || hasRole(user, 'IT_ADMIN') || assetQuery.data.currentAssignment?.userId === user?.id ? (
+                    <Link to={`/assets/${ticket.assetId}`}>View linked asset →</Link>
+                  ) : (
+                    'Asset linked (restricted)'
+                  )
+                ) : ticket.assetId ? (
                   <Link to={`/assets/${ticket.assetId}`}>View linked asset →</Link>
                 ) : (
                   'No asset'

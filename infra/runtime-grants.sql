@@ -11,5 +11,6 @@ GRANT INSERT ON audit_events,assignment_events,asset_movements,ticket_updates,em
 GRANT INSERT,UPDATE ON notification_outbox,email_deliveries TO iac_runtime;
 GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO iac_runtime;
 GRANT UPDATE ON SEQUENCE asset_number_seq TO iac_runtime;
+GRANT INSERT ON ticket_photos,asset_label_prints TO iac_runtime;
 -- No DELETE on assets/custody/tickets; no UPDATE/DELETE on immutable evidence.
 -- Reapply explicit grants after new migrations. Do not grant schema ownership.
