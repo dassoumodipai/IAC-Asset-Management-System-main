@@ -11,7 +11,7 @@ export class ApiError extends Error {
   }
 }
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'PUT';
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   version?: number;
   idempotencyKey?: string;

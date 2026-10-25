@@ -92,7 +92,7 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     next();
     return;
   }
-  if (req.get('Origin') !== configuration().origin) {
+  if (!configuration().origins.includes(req.get('Origin') || '')) {
     res.status(403).json({
       error: {
         code: 'ORIGIN_INVALID',

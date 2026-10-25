@@ -9,7 +9,7 @@ import { AssetList, AssetDetail, AssetEditor, AssignmentForm } from './component
 import { ScanPage } from './components/Scan';
 import { LabelPrintPage } from './components/Labels';
 import { rememberReturnTo, clearReturnTo } from './return-to';
-import { InstallMenuItem, IosInstallTip, OfflineScreen } from './components/Pwa';
+import { InstallAppPage, InstallMenuItem, OfflineScreen } from './components/Pwa';
 import { ScanButton } from './components/Scanner';
 import { TicketForm, TicketList, TicketDetail } from './components/Tickets';
 import { UserDashboard } from './components/Dashboards';
@@ -18,7 +18,8 @@ import { Empty, ErrorNotice, Loading } from './components/ui';
 import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { MasterControl } from './components/MasterControl';
-function Guard({ admin = false }: { admin?: boolean }) {
+import { PushAnnouncements } from './components/PushAnnouncements';
+function Guard({ admin = false, staffOnly = false }: { admin?: boolean; staffOnly?: boolean }) {
   const { user, loading, error } = useSession();
   const location = useLocation();
   const remember = () => rememberReturnTo(location.pathname + location.search);
@@ -56,6 +57,8 @@ function Guard({ admin = false }: { admin?: boolean }) {
     return (
       <Empty title="Admin access required">Your account does not have access to this area.</Empty>
     );
+  if (staffOnly && !isStaff(user))
+    return <Empty title="Staff access required">Your account does not have access to this area.</Empty>;
   return <Outlet />;
 }
 type NavIconName =
@@ -67,6 +70,8 @@ type NavIconName =
   | 'imports'
   | 'audit'
   | 'notifications'
+  | 'install'
+  | 'push'
   | 'menu';
 function NavIcon({ name }: { name: NavIconName }) {
   const paths: Record<NavIconName, ReactNode> = {
@@ -126,6 +131,8 @@ function NavIcon({ name }: { name: NavIconName }) {
         <path d="M10 20.5a2 2 0 0 0 4 0" />
       </>
     ),
+    install: <><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 20h14" /></>,
+    push: <><path d="M12 3 4 7v5c0 5 3.5 8 8 9 4.5-1 8-4 8-9V7z" /><path d="m9 12 2 2 4-4" /></>,
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   };
   return (
@@ -197,9 +204,21 @@ function Shell() {
             </span>
             {isStaff(user) ? 'Support desk' : 'My tickets'}
           </NavLink>
-          {hasRole(user, 'ADMIN') ? (
+          <NavLink to="/install">
+            <span className="nav-icon"><NavIcon name="install" /></span>
+            Install app
+          </NavLink>
+          {isStaff(user) ? (
             <>
               <p className="nav-label">Administration</p>
+              <NavLink to="/admin/announcements">
+                <span className="nav-icon"><NavIcon name="push" /></span>
+                PWA announcements
+              </NavLink>
+            </>
+          ) : null}
+          {hasRole(user, 'ADMIN') ? (
+            <>
               <NavLink to="/assets/labels">
                 <span className="nav-icon">
                   <NavIcon name="assets" />
@@ -282,7 +301,6 @@ function Shell() {
           {logoutError ? <ErrorNotice error={logoutError} /> : null}
           <OfflineScreen />
           <Outlet />
-          <IosInstallTip />
           <footer className="page-footer">
             IAC Patrons Foundation<span>Asset Management Platform · v0.1</span>
           </footer>
@@ -346,6 +364,10 @@ export function App() {
             <Route path="/tickets/new" element={<TicketForm />} />
             <Route path="/tickets/:id" element={<TicketDetail />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/install" element={<InstallAppPage />} />
+            <Route element={<Guard staffOnly />}>
+              <Route path="/admin/announcements" element={<PushAnnouncements />} />
+            </Route>
             <Route element={<Guard admin />}>
               <Route
                 path="/assignments/new"

@@ -108,7 +108,7 @@ export async function createApp(): Promise<INestApplication> {
   });
   app.use(helmet());
   app.enableCors({
-    origin: configuration().origin,
+    origin: configuration().origins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'If-Match', 'Idempotency-Key'],
@@ -117,7 +117,7 @@ export async function createApp(): Promise<INestApplication> {
   app.use('/api/v1/tickets', (req: Request, res: Response, next: () => void) =>
     req.method === 'POST' &&
     req.path === '/' &&
-    req.headers.origin === configuration().origin &&
+    configuration().origins.includes(req.headers.origin || '') &&
     (req.headers.cookie || '')
       .split(';')
       .some((c) => c.trim().startsWith(`${configuration().sessionCookie}=`))

@@ -11,6 +11,7 @@ x-app-env: &app-env
   NODE_ENV: production
   PORT: '3000'
   APP_ORIGIN: https://${DOMAIN:?Set DOMAIN in .env.production}
+  ADDITIONAL_APP_ORIGINS: ${ADDITIONAL_APP_ORIGINS:-}
   DATABASE_URL: postgresql://iac_app:${POSTGRES_APP_PASSWORD:?}@db:5432/iac
   DATABASE_SSL: 'false'
   TRUST_PROXY_HOPS: '1'
@@ -24,6 +25,9 @@ x-app-env: &app-env
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM: ${SMTP_FROM:?}
+  PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
+  PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
+  PUSH_VAPID_SUBJECT: ${PUSH_VAPID_SUBJECT:-}
 
 services:
   db:

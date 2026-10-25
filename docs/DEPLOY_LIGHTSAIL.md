@@ -100,6 +100,8 @@ Fill in every value:
 | `SMTP_USER` | `it@indiaautismcenter.org` |
 | `SMTP_PASSWORD` | the new Google app password |
 | `SMTP_FROM` | `IAC Asset Portal <it@indiaautismcenter.org>` |
+| `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` | Generate with `node -e "console.log(require('web-push').generateVAPIDKeys())"` from the project root; keep the pair private and stable |
+| `PUSH_VAPID_SUBJECT` | `mailto:it@indiaautismcenter.org` |
 
 Save with `Ctrl+O`, `Enter`, then exit with `Ctrl+X`. **Copy all five secrets into your password manager now.** Losing `TOTP_ENCRYPTION_KEY` locks everyone out of MFA.
 
@@ -109,7 +111,7 @@ Save with `Ctrl+O`, `Enter`, then exit with `Ctrl+X`. **Copy all five secrets in
 docker compose --env-file .env.production -f infra/docker-compose.prod.yml up -d --build
 ```
 
-The first build takes 5–15 minutes. It builds the app, creates the database, runs every migration (001–009), applies the restricted database permissions, then starts the API, email worker, website and Caddy. Caddy gets the HTTPS certificate automatically.
+The first build takes 5–15 minutes. It builds the app, creates the database, runs every migration, applies the restricted database permissions, then starts the API, email worker, website and Caddy. Caddy gets the HTTPS certificate automatically.
 
 Check that everything is running:
 

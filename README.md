@@ -67,7 +67,7 @@ Each asset has a QR label that opens `/a/<Asset ID>` in this portal. **Printing 
 
 **Installing the app:** the portal is an installable web app. On Android Chrome use **Install app** in the top bar; on iPhone Safari use Share, then **Add to Home Screen**. The camera needs HTTPS (or localhost). The app needs a network connection; API responses are never cached offline.
 
-Migrations 008 and 010 add scan/ticket photo/label history and employee designation/department fields. Run `npm run db:migrate` when updating an existing installation. Production migration owners must also reapply `infra/runtime-grants.sql`; ticket photos and label print history are included in database backup and retention procedures.
+Migrations 008, 010, and 011 add scan/ticket photo/label history, employee designation/department fields, and encrypted PWA push subscriptions. Run `npm run db:migrate` when updating an existing installation. Production migration owners must also reapply `infra/runtime-grants.sql`; ticket photos, label print history, and push subscriptions are included in database backup and retention procedures.
 
 ## Gmail SMTP setup
 

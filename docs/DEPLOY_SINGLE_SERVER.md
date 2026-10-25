@@ -23,6 +23,11 @@
    ```
 
    Fill every value. Generate each secret separately with `openssl rand -hex 32`.
+   For PWA push, generate one VAPID pair from the project root with
+   `node -e "console.log(require('web-push').generateVAPIDKeys())"`, then save the
+   `publicKey` and `privateKey` as `PUSH_VAPID_PUBLIC_KEY` and
+   `PUSH_VAPID_PRIVATE_KEY`. Set `PUSH_VAPID_SUBJECT` to a monitored
+   `mailto:it@example.org` address. Keep this key pair stable across releases.
 
 4. Start everything:
 
@@ -40,6 +45,11 @@
 
 6. Open `https://<DOMAIN>`, sign in, enroll MFA and accept the portal notice.
 
+After sign-in, users can open **Install app** for device-specific steps and enable
+notifications on each device. On iPhone/iPad, add the site to the Home Screen and open
+the installed app before enabling push. **PWA announcements** is available to Admin and
+IT Admin roles and sends to devices that have enabled notifications.
+
 ## Email
 
 The worker starts with the stack and sends every eligible pending notification. Fill the `SMTP_*` values before the first `up`, or remove `worker` from the command (`up -d caddy web api`) until outbound delivery is approved. For Google Workspace use `smtp.gmail.com`, port `465`, `SMTP_SECURE=true`, the full sender address and a Google app password (see [GMAIL_SMTP.md](GMAIL_SMTP.md)). Configure SPF, DKIM and DMARC for the sender domain.
@@ -56,7 +66,7 @@ Copy the new release and rerun the `up -d --build` command. Migrations and grant
 docker compose --env-file .env.production -f infra/docker-compose.prod.yml exec -T db pg_dump -U iac_owner -Fc iac > iac-$(date +%F).dump
 ```
 
-Schedule this daily (cron), copy dumps off the server and encrypt them. Store `.env.production` keys separately from backups; without `TOTP_ENCRYPTION_KEY` and `AUTH_MAIL_ENCRYPTION_KEY` a restored database cannot decrypt MFA or queued email. Test a restore before go-live. A managed PostgreSQL (with point-in-time recovery) can replace the `db` service: point `DATABASE_URL`/`MIGRATION_DATABASE_URL` at it, set `DATABASE_SSL=true`, and create the `iac_runtime` role and `iac_app` login there as in `infra/postgres-init/01-runtime-login.sh`.
+Schedule this daily (cron), copy dumps off the server and encrypt them. Store `.env.production` keys separately from backups; without `TOTP_ENCRYPTION_KEY` and `AUTH_MAIL_ENCRYPTION_KEY` a restored database cannot decrypt MFA, queued email, or saved push subscriptions. Preserve the VAPID pair so existing subscriptions remain valid. Test a restore before go-live. A managed PostgreSQL (with point-in-time recovery) can replace the `db` service: point `DATABASE_URL`/`MIGRATION_DATABASE_URL` at it, set `DATABASE_SSL=true`, and create the `iac_runtime` role and `iac_app` login there as in `infra/postgres-init/01-runtime-login.sh`.
 
 ## Notes
 

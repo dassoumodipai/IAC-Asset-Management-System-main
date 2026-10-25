@@ -17,9 +17,22 @@ export const configuration = () => {
   const url = new URL(origin);
   if (url.origin !== origin || (production && url.protocol !== 'https:'))
     throw new Error('APP_ORIGIN must be an origin and use HTTPS in production');
+  const origins = [...new Set([
+    origin,
+    ...(process.env.ADDITIONAL_APP_ORIGINS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ])];
+  for (const allowedOrigin of origins) {
+    const parsed = new URL(allowedOrigin);
+    if (parsed.origin !== allowedOrigin || (production && parsed.protocol !== 'https:'))
+      throw new Error('Every additional app origin must be an exact HTTPS origin in production');
+  }
   return {
     production,
     origin,
+    origins,
     port: Number(process.env.PORT || 3000),
     databaseUrl: process.env.DATABASE_URL || '',
     sessionCookie: production ? '__Host-iac_session' : 'iac_dev_session',

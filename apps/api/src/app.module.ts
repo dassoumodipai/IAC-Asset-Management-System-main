@@ -9,6 +9,7 @@ import { ScanController, ScanService } from './scan';
 import { LabelController, LabelService } from './labels';
 import { DataTransferController, DataTransferService } from './data-transfers';
 import { AdminDashboardController, AdminDashboardService } from './admin-dashboard';
+import { PushController, PushService } from './push';
 @Module({
   controllers: [
     AuthController,
@@ -18,6 +19,7 @@ import { AdminDashboardController, AdminDashboardService } from './admin-dashboa
     LabelController,
     DataTransferController,
     AdminDashboardController,
+    PushController,
   ],
   providers: [
     Db,
@@ -29,6 +31,7 @@ import { AdminDashboardController, AdminDashboardService } from './admin-dashboa
     LabelService,
     DataTransferService,
     AdminDashboardService,
+    PushService,
   ],
 })
 export class AppModule {}
