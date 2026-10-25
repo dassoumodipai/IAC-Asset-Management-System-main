@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAction, usePages } from '../hooks';
-import type { ImportBatch, Role, User } from '../types';
+import type { ImportBatch, References, Role, User } from '../types';
 import { fetchAllPages, readTable } from '../transfer-files';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
 import {
@@ -21,13 +21,21 @@ import {
 } from './ui';
 export function UserAdmin() {
   const query = usePages<User>('/users');
+  const refs = useQuery({
+    queryKey: ['references'],
+    queryFn: ({ signal }) => api<References>('/references', { signal }),
+  });
   const action = useAction<{ message?: string }>();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
   const [invite, setInvite] = useState(true);
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<User>();
   const [roles, setRoles] = useState<Role[]>([]);
+  const [selectedDesignation, setSelectedDesignation] = useState('');
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [reason, setReason] = useState('');
   const [state, setState] = useState('ACTIVE');
   const [resendingId, setResendingId] = useState<string>();
@@ -40,7 +48,12 @@ export function UserAdmin() {
       .mutateAsync({
         path: invite ? '/invitations' : '/approved-emails',
         body: invite
-          ? { email: email.trim(), displayName: displayName.trim() }
+          ? {
+              email: email.trim(),
+              displayName: displayName.trim(),
+              designation: designation.trim() || null,
+              departmentId: departmentId || null,
+            }
           : { email: email.trim() },
         idempotent: true,
       })
@@ -51,11 +64,15 @@ export function UserAdmin() {
       );
       setEmail('');
       setDisplayName('');
+      setDesignation('');
+      setDepartmentId('');
     }
   }
   function select(user: User) {
     setSelected(user);
     setRoles([...user.roles]);
+    setSelectedDesignation(user.designation || '');
+    setSelectedDepartmentId(user.departmentId || '');
     setState(user.state === 'DISABLED' ? 'DISABLED' : 'ACTIVE');
     setReason('');
     action.reset();
@@ -69,7 +86,12 @@ export function UserAdmin() {
       const result = await action
         .mutateAsync({
           path: '/invitations',
-          body: { email: user.email, displayName: user.displayName },
+          body: {
+            email: user.email,
+            displayName: user.displayName,
+            designation: user.designation ?? null,
+            departmentId: user.departmentId ?? null,
+          },
         })
         .catch(() => undefined);
       if (result)
@@ -86,7 +108,15 @@ export function UserAdmin() {
       .mutateAsync({
         path: `/users/${selected.id}`,
         method: 'PATCH',
-        body: { state, roles, reason: reason.trim() },
+        body: {
+          ...(state !== (selected.state === 'INVITED' ? 'ACTIVE' : selected.state) ? { state } : {}),
+          ...(roles.slice().sort().join(',') !== selected.roles.slice().sort().join(',')
+            ? { roles }
+            : {}),
+          designation: selectedDesignation.trim() || null,
+          departmentId: selectedDepartmentId || null,
+          reason: reason.trim(),
+        },
         version: selected.version,
       })
       .then(() => true)
@@ -109,6 +139,8 @@ export function UserAdmin() {
           'id',
           'email',
           'displayName',
+          'designation',
+          'department',
           'roles',
           'state',
           'emailVerifiedAt',
@@ -120,6 +152,8 @@ export function UserAdmin() {
             id: user.id,
             email: user.email,
             displayName: user.displayName,
+            designation: user.designation,
+            department: user.department,
             roles: user.roles,
             state: user.state,
             emailVerifiedAt: user.emailVerifiedAt,
@@ -147,14 +181,18 @@ export function UserAdmin() {
             fields={[
               { key: 'email', required: true },
               { key: 'displayName' },
+              { key: 'designation' },
+              { key: 'departmentId' },
               { key: 'invite', type: 'boolean' },
             ]}
-            values={{ email, displayName, invite }}
+            values={{ email, displayName, designation, departmentId, invite }}
             disabled={action.isPending}
             description="Load one approved employee into this form, then review and submit. Sending an invitation remains an explicit action."
             onImport={(record) => {
               if ('email' in record) setEmail(String(record.email ?? ''));
               if ('displayName' in record) setDisplayName(String(record.displayName ?? ''));
+              if ('designation' in record) setDesignation(String(record.designation ?? ''));
+              if ('departmentId' in record) setDepartmentId(String(record.departmentId ?? ''));
               if (typeof record.invite === 'boolean') setInvite(record.invite);
             }}
           />
@@ -179,15 +217,38 @@ export function UserAdmin() {
               Send an invitation to this email
             </label>
             {invite ? (
-              <Field label="Employee name" htmlFor="admin-displayName">
-                <input
-                  id="admin-displayName"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  required
-                  maxLength={120}
+              <>
+                <Field label="Employee name" htmlFor="admin-displayName">
+                  <input
+                    id="admin-displayName"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    required
+                    maxLength={120}
+                  />
+                </Field>
+                <Field label="Designation" htmlFor="admin-designation">
+                  <input
+                    id="admin-designation"
+                    value={designation}
+                    onChange={(event) => setDesignation(event.target.value)}
+                    maxLength={120}
+                    placeholder="For example, Occupational Therapist"
+                  />
+                </Field>
+                <Select
+                  label="Employee department"
+                  htmlFor="admin-department"
+                  value={departmentId}
+                  onChange={setDepartmentId}
+                  options={[
+                    { value: '', label: 'Not set' },
+                    ...(refs.data?.departments
+                      .filter((department) => department.active)
+                      .map((department) => ({ value: department.id, label: department.name })) ?? []),
+                  ]}
                 />
-              </Field>
+              </>
             ) : null}
             <button className="button" disabled={action.isPending}>
               {action.isPending
@@ -197,8 +258,8 @@ export function UserAdmin() {
                   : 'Approve email'}
             </button>
             <p className="muted small-text">
-              Registration grants Employee access only. Staff roles are assigned separately by an
-              Admin.
+              Name, designation and department are shown to signed-in staff on the scanned asset
+              page. Registration grants Employee access only; staff roles are assigned separately.
             </p>
           </form>
         </Panel>
@@ -230,14 +291,18 @@ export function UserAdmin() {
                 options: ['EMPLOYEE', 'IT_ADMIN', 'ADMIN'],
               },
               { key: 'state', required: true, options: ['ACTIVE', 'DISABLED'] },
+              { key: 'designation' },
+              { key: 'departmentId' },
               { key: 'reason', required: true },
             ]}
-            values={{ roles, state, reason }}
+            values={{ roles, state, designation: selectedDesignation, departmentId: selectedDepartmentId, reason }}
             disabled={action.isPending}
             description="Loads access changes for this selected account only. Review the roles and reason before saving."
             onImport={(record) => {
               if (Array.isArray(record.roles)) setRoles(record.roles as Role[]);
               if ('state' in record) setState(String(record.state));
+              if ('designation' in record) setSelectedDesignation(String(record.designation ?? ''));
+              if ('departmentId' in record) setSelectedDepartmentId(String(record.departmentId ?? ''));
               if ('reason' in record) setReason(String(record.reason ?? ''));
             }}
           />
@@ -273,6 +338,28 @@ export function UserAdmin() {
     ]}
   />
 </Field>
+            <Field label="Designation" htmlFor="staff-designation">
+              <input
+                id="staff-designation"
+                value={selectedDesignation}
+                onChange={(event) => setSelectedDesignation(event.target.value)}
+                maxLength={120}
+                placeholder="For example, Occupational Therapist"
+              />
+            </Field>
+            <Select
+              label="Employee department"
+              htmlFor="staff-department"
+              value={selectedDepartmentId}
+              onChange={setSelectedDepartmentId}
+              options={[
+                { value: '', label: 'Not set' },
+                ...(refs.data?.departments.map((department) => ({
+                  value: department.id,
+                  label: `${department.name}${department.active ? '' : ' (inactive)'}`,
+                })) ?? []),
+              ]}
+            />
             <Field label="Reason for access change" htmlFor="access-reason">
               <textarea
                 id="access-reason"
@@ -316,6 +403,7 @@ export function UserAdmin() {
                 <tr>
                   <th>Person</th>
                   <th>Roles</th>
+                  <th>Designation / department</th>
                   <th>State</th>
                   <th>Email verified</th>
                   <th>Portal accepted</th>
@@ -335,6 +423,10 @@ export function UserAdmin() {
                       {user.roles.map((role) => (
                         <Badge key={role} value={role} />
                       ))}
+                    </td>
+                    <td>
+                      {user.designation || 'Not set'}
+                      <span className="cell-description">{user.department || 'Department not set'}</span>
                     </td>
                     <td>
                       <Badge value={user.state} />
@@ -378,7 +470,7 @@ export function UserAdmin() {
           </Empty>
         ) : null}
         <LoadMore
-          available={query.hasNextPage}
+          available={query.hasNextPage && !query.isPlaceholderData}
           loading={query.isFetchingNextPage}
           onClick={() => {
             void query.fetchNextPage();
@@ -492,7 +584,7 @@ export function AuditView() {
           <Empty title="No activity to display">Recorded changes will appear here.</Empty>
         ) : null}
         <LoadMore
-          available={query.hasNextPage}
+          available={query.hasNextPage && !query.isPlaceholderData}
           loading={query.isFetchingNextPage}
           onClick={() => {
             void query.fetchNextPage();

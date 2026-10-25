@@ -63,11 +63,11 @@ Apply migration 005 with `npm run db:migrate` when updating an existing installa
 
 Each asset has a QR label that opens `/a/<Asset ID>` in this portal. **Printing (Admin):** open **Print labels**, filter and select assets (**Not printed yet** finds new ones), choose A4 24-up, A4 14-up or a 50 x 25 mm thermal roll, set **Start at label #** to reuse a partly used sheet, then **Print** at 100% scale (no fit-to-page). After printing, choose **Yes, record print** so the catalog shows when each label was last printed. Up to 500 labels per run.
 
-**Scanning:** staff can use the phone camera app or the in-app **Scan** button (falls back to typing the asset ID when the camera is unavailable). Signed-out users sign in first and return to the asset. The scan page shows the asset and **Report a problem**, which opens a ticket for that asset with up to 3 photos (resized on the device, metadata removed). Retired, lost or stolen assets cannot be reported from the scan page.
+**Scanning:** staff can use the phone camera app or the in-app **Scan** button (falls back to typing the asset ID when the camera is unavailable). Signed-out users sign in first and return to the asset. Signed-in staff can see the current custodian's name, designation, department, assignment status and date, along with the asset's department and location. Email addresses, account IDs, handover notes and previous custodians are not shown on the scan page. Admins maintain designation and department in **People & access**. The scan page also offers **Report a problem**, which opens a ticket for that asset with up to 3 photos (resized on the device, metadata removed). Retired, lost or stolen assets cannot be reported from the scan page.
 
 **Installing the app:** the portal is an installable web app. On Android Chrome use **Install app** in the top bar; on iPhone Safari use Share, then **Add to Home Screen**. The camera needs HTTPS (or localhost). The app needs a network connection; API responses are never cached offline.
 
-Apply migration 008 with `npm run db:migrate` when updating an existing installation. Production migration owners must also reapply `infra/runtime-grants.sql`; ticket photos and label print history are included in database backup and retention procedures.
+Migrations 008 and 010 add scan/ticket photo/label history and employee designation/department fields. Run `npm run db:migrate` when updating an existing installation. Production migration owners must also reapply `infra/runtime-grants.sql`; ticket photos and label print history are included in database backup and retention procedures.
 
 ## Gmail SMTP setup
 

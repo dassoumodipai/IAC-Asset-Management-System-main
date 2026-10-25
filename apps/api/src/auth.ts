@@ -45,6 +45,8 @@ import {
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(12).max(128);
 const name = z.string().trim().min(1).max(120);
+const designation = z.string().trim().min(1).max(120).nullable().optional();
+const departmentId = z.string().uuid().nullable().optional();
 const tokenInput = z.object({ token: z.string().min(32).max(200) }).strict();
 const generic = { message: 'If this request is eligible, an email will arrive shortly.' };
 export const passwordHash = (value: string) =>
@@ -573,7 +575,15 @@ export class AuthService {
     }
     values.push(input.limit + 1);
     const rows = await this.db.query(
-      `SELECT u.id,u.email,u.display_name AS "displayName",u.employee_reference AS "employeeReference",u.state,u.version,u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE ${where.join(' AND ')} GROUP BY u.id ORDER BY u.created_at DESC,u.id DESC LIMIT $${values.length}`,
+      `SELECT u.id,u.email,u.display_name AS "displayName",u.employee_reference AS "employeeReference",
+              u.designation,u.department_id AS "departmentId",d.name AS department,u.state,u.version,
+              u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",
+              u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",
+              coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles
+       FROM users u
+       LEFT JOIN departments d ON d.id=u.department_id
+       LEFT JOIN user_roles ur ON ur.user_id=u.id
+       WHERE ${where.join(' AND ')} GROUP BY u.id,d.name ORDER BY u.created_at DESC,u.id DESC LIMIT $${values.length}`,
       values,
     );
     const items = rows.slice(0, input.limit),
@@ -603,16 +613,35 @@ export class AuthService {
   }
   async invite(req: AuthRequest, body: unknown) {
     requireRole(req, 'ADMIN');
-    const data = z.object({ email, displayName: name.optional() }).strict().parse(body);
+    const data = z
+      .object({ email, displayName: name.optional(), designation, departmentId })
+      .strict()
+      .parse(body);
     return this.db.tx(async (client) => {
+      if (
+        data.departmentId &&
+        !(await this.db.query('SELECT id FROM departments WHERE id=$1', [data.departmentId], client))[0]
+      )
+        throw new HttpException('Department not found', 404);
       await this.db.query(
         'INSERT INTO approved_emails(email,approved_by) VALUES($1,$2) ON CONFLICT DO NOTHING',
         [data.email, req.user.id],
         client,
       );
       const [user] = await this.db.query(
-        `INSERT INTO users(email,display_name) VALUES($1,$2) ON CONFLICT(email) DO UPDATE SET updated_at=now() WHERE users.state='INVITED' RETURNING id,email`,
-        [data.email, data.displayName || data.email.split('@')[0]],
+        `INSERT INTO users(email,display_name,designation,department_id) VALUES($1,$2,$3,$4)
+         ON CONFLICT(email) DO UPDATE SET
+           display_name=excluded.display_name,
+           designation=coalesce(excluded.designation,users.designation),
+           department_id=coalesce(excluded.department_id,users.department_id),
+           updated_at=now()
+         WHERE users.state='INVITED' RETURNING id,email`,
+        [
+          data.email,
+          data.displayName || data.email.split('@')[0],
+          data.designation ?? null,
+          data.departmentId ?? null,
+        ],
         client,
       );
       if (!user) throw new HttpException('This account already exists', 409);
@@ -632,6 +661,8 @@ export class AuthService {
     const data = z
       .object({
         state: z.enum(['ACTIVE', 'DISABLED']).optional(),
+        designation,
+        departmentId,
         roles: z
           .array(z.enum(['ADMIN', 'EMPLOYEE', 'IT_ADMIN']))
           .min(1)
@@ -640,7 +671,14 @@ export class AuthService {
         reason: z.string().trim().min(1).max(5000).optional(),
       })
       .strict()
-      .refine((d) => d.state !== undefined || d.roles !== undefined, 'No changes supplied')
+      .refine(
+        (d) =>
+          d.state !== undefined ||
+          d.roles !== undefined ||
+          d.designation !== undefined ||
+          d.departmentId !== undefined,
+        'No changes supplied',
+      )
       .parse(body);
     await this.db.tx(async (client) => {
       await this.db.query(`SELECT pg_advisory_xact_lock(715023)`, [], client);
@@ -653,6 +691,11 @@ export class AuthService {
       assertVersion(req, user.version);
       if (data.state === 'ACTIVE' && (!user.password_hash || !user.email_verified_at))
         throw new HttpException('User must complete email verification or invitation first', 409);
+      if (
+        data.departmentId &&
+        !(await this.db.query('SELECT id FROM departments WHERE id=$1', [data.departmentId], client))[0]
+      )
+        throw new HttpException('Department not found', 404);
       const roles = (
         await this.db.query('SELECT role_code FROM user_roles WHERE user_id=$1', [id], client)
       ).map((r) => r.role_code);
@@ -672,8 +715,8 @@ export class AuthService {
           throw new HttpException('The final active Admin cannot be removed or disabled', 409);
       }
       await this.db.query(
-        'UPDATE users SET state=$2,version=version+1,updated_at=now() WHERE id=$1',
-        [id, newState],
+        'UPDATE users SET state=$2,designation=$3,department_id=$4,version=version+1,updated_at=now() WHERE id=$1',
+        [id, newState, data.designation === undefined ? user.designation : data.designation, data.departmentId === undefined ? user.department_id : data.departmentId],
         client,
       );
       if (data.roles) {
@@ -685,23 +728,33 @@ export class AuthService {
             client,
           );
       }
-      await this.db.query(
-        'UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',
-        [id],
-        client,
-      );
-      await this.db.query(
-        'UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1 AND consumed_at IS NULL',
-        [id],
-        client,
-      );
-      await this.db.audit(client, req.user, 'USER', id, 'ACCESS_CHANGED', {
+      const accessChanged = data.state !== undefined || data.roles !== undefined;
+      if (accessChanged) {
+        await this.db.query(
+          'UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',
+          [id],
+          client,
+        );
+        await this.db.query(
+          'UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1 AND consumed_at IS NULL',
+          [id],
+          client,
+        );
+      }
+      await this.db.audit(client, req.user, 'USER', id, accessChanged ? 'ACCESS_CHANGED' : 'STAFF_PROFILE_UPDATED', {
         state: newState,
         roles: newRoles,
+        designation: data.designation === undefined ? user.designation : data.designation,
+        departmentId: data.departmentId === undefined ? user.department_id : data.departmentId,
         reason: data.reason || null,
       });
     });
-    return { message: 'Access updated; existing sessions revoked' };
+    return {
+      message:
+        data.state !== undefined || data.roles !== undefined
+          ? 'Account updated; existing sessions revoked.'
+          : 'Employee details updated.',
+    };
   }
 }
 @Controller()

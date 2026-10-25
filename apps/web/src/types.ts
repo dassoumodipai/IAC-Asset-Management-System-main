@@ -4,6 +4,9 @@ export interface User {
   id: string;
   email: string;
   displayName: string;
+  designation?: string | null;
+  departmentId?: string | null;
+  department?: string | null;
   roles: Role[];
   state: 'INVITED' | 'ACTIVE' | 'DISABLED';
   emailVerifiedAt: string | null;
@@ -20,6 +23,9 @@ export interface Assignment {
   id: string;
   assetId?: string;
   userId?: string;
+  employeeName?: string;
+  employeeDesignation?: string | null;
+  employeeDepartment?: string | null;
   version: number;
   acknowledgement: 'PENDING' | 'ACCEPTED' | 'DISPUTED';
   assignedAt?: string;
@@ -169,6 +175,13 @@ export interface ScanView {
   manufacturer: string | null;
   model: string | null;
   department: string | null;
+  custodian: {
+    name: string;
+    designation: string | null;
+    department: string | null;
+    acknowledgement: string;
+    assignedAt: string;
+  } | null;
   location: { site: string; floor: string | null; room: string | null } | null;
   status: string;
   hasPhoto: boolean;

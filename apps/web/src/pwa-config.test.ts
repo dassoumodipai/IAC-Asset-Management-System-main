@@ -21,8 +21,9 @@ describe('pwa config', () => {
     expect(m.display).toBe('standalone');
     expect(m.theme_color).toBe('#eef2f6');
     expect(m.background_color).toBe('#eef2f6');
-    expect(m.icons).toHaveLength(3);
-    expect(m.icons[2]).toMatchObject({ src: 'pwa-maskable-512.png', purpose: 'maskable' });
+    expect(m.icons).toHaveLength(2);
+    expect(m.icons[0].src).toBe('image.png');
+    expect(m.icons[1]).toMatchObject({ src: 'image.png', purpose: 'maskable' });
     expect(pwaOptions.workbox?.navigateFallback).toBe('/index.html');
     expect(pwaOptions.workbox?.globPatterns).toEqual(['**/*.{js,css,html,png,svg,woff2}']);
   });

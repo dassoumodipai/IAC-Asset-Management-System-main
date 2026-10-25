@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, queryString } from '../api';
 import { barPercent, formatInr, fyOptions, humaniseAction } from '../admin-insights';
@@ -258,6 +258,62 @@ function AssetLink({ id, code }: { id: string; code: string }) {
   return <Link to={`/assets/${id}`}>{code}</Link>;
 }
 
+const skeletonWidths = ['92%', '78%', '86%', '70%', '88%'];
+
+function SkeletonBars() {
+  return (
+    <div className="insight-skeleton-bars" aria-hidden="true">
+      {skeletonWidths.map((width, index) => (
+        <span className="insight-skeleton-bar" style={{ width }} key={index} />
+      ))}
+    </div>
+  );
+}
+
+function SkeletonPanel({ title, chart = false }: { title: string; chart?: boolean }) {
+  return (
+    <Panel title={title} className="admin-insights-panel">
+      <div className={`insight-skeleton-content${chart ? ' is-chart' : ''}`}>
+        <SkeletonBars />
+      </div>
+    </Panel>
+  );
+}
+
+function AdminInsightsSkeleton() {
+  return (
+    <div className="admin-insights-skeleton" role="status" aria-label="Loading dashboard insights">
+      <div className="admin-insights-skeleton-status">
+        <Loading label="Loading dashboard insights…" />
+      </div>
+      <div aria-hidden="true">
+        <div className="metric-grid admin-insights-kpis">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div className="metric insight-skeleton-metric" key={index}>
+              <span className="insight-skeleton-line short" />
+              <span className="insight-skeleton-line value" />
+              <span className="insight-skeleton-line medium" />
+            </div>
+          ))}
+        </div>
+        <div className="admin-insights-grid admin-insights-charts">
+          <SkeletonPanel title="Spend by financial year" chart />
+          <SkeletonPanel title="Spend by category" />
+          <SkeletonPanel title="Spend by department" />
+          <SkeletonPanel title="Assets by status" />
+          <SkeletonPanel title="Tickets, last 12 weeks" chart />
+        </div>
+        <div className="admin-insights-grid admin-insights-watch">
+          <SkeletonPanel title="Warranty & AMC expiring (60 days)" />
+          <SkeletonPanel title="Most-reported assets" />
+          <SkeletonPanel title="Finance gaps" />
+          <SkeletonPanel title="Recent activity" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminInsights() {
   const today = new Date();
   const yearOptions = fyOptions(today);
@@ -268,12 +324,13 @@ export function AdminInsights() {
   const filters = { fy, departmentId, category };
   const query = useQuery({
     queryKey: ['dashboard-admin', filters],
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
       api<AdminDashboardData>(`/dashboard/admin${queryString(filters)}`, { signal }),
   });
   const data = query.data;
   return (
-    <section className="admin-insights">
+    <section className="admin-insights" aria-busy={query.isFetching}>
       <div className="admin-insights-filters">
         <Select
           label="Financial year"
@@ -318,7 +375,12 @@ export function AdminInsights() {
           void refs.refetch();
         }}
       />
-      {query.isPending ? <Loading label="Loading dashboard insights..." /> : null}
+      {query.isPending ? <AdminInsightsSkeleton /> : null}
+      {query.isFetching && data ? (
+        <p className="inline-refresh" role="status">
+          Updating insights…
+        </p>
+      ) : null}
       {data ? (
         <>
           <div className="metric-grid admin-insights-kpis">

@@ -31,6 +31,15 @@ function useDashboard() {
     queryFn: ({ signal }) => api<Summary>('/dashboard', { signal }),
   });
 }
+function DashboardListSkeleton({ kind, horizontal = false }: { kind: 'equipment' | 'requests'; horizontal?: boolean }) {
+  return (
+    <div
+      className={`dashboard-data-loading ${kind}${horizontal ? ' horizontal' : ''}`}
+    >
+      <Loading label={kind === 'equipment' ? 'Loading equipment…' : 'Loading requests…'} />
+    </div>
+  );
+}
 export function UserDashboard() {
   const { user } = useSession();
   if (hasRole(user, 'ADMIN')) return <AdminDashboard />;
@@ -103,7 +112,7 @@ function EmployeeDashboard() {
             }}
           />
           {assets.isPending ? (
-            <Loading />
+            <DashboardListSkeleton kind="equipment" />
           ) : items.length ? (
             <div className="asset-card-list">
               {items.slice(0, 4).map((asset) => (
@@ -140,7 +149,7 @@ function EmployeeDashboard() {
             }}
           />
           {tickets.isPending ? (
-            <Loading />
+            <DashboardListSkeleton kind="requests" />
           ) : requests.length ? (
             <div className="queue-list">
               {requests.slice(0, 4).map((ticket) => (
@@ -181,7 +190,6 @@ export function AdminDashboard() {
           void summary.refetch();
         }}
       />
-      {summary.isPending ? <Loading /> : null}
       <AdminInsights />
       <div className="dashboard-columns">
         <Panel title="What needs attention">
@@ -301,7 +309,7 @@ function StaffQueue() {
       />
       <ErrorNotice error={action.error} />
       {query.isPending ? (
-        <Loading />
+        <DashboardListSkeleton kind="requests" horizontal />
       ) : items.length ? (
         <div className="queue-list horizontal">
           {items.slice(0, 4).map((ticket) => (

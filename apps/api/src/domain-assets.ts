@@ -64,10 +64,15 @@ export class AssetDomain extends MasterDomain {
   async attachCurrentAssignments(actor: Actor, items: any[], client?: PoolClient) {
     if (!items.length) return;
     const values: any[] = [items.map((a) => a.id)];
-    const own = admin(actor) ? '' : ` AND user_id=$2`;
+    const own = admin(actor) ? '' : ' AND s.user_id=$2';
     if (!admin(actor)) values.push(actor.id);
     const assignments = await this.db.query(
-      `SELECT id,asset_id,user_id,acknowledgement,acknowledged_at,dispute_reason,assigned_at,version FROM assignments WHERE ended_at IS NULL AND asset_id=ANY($1::uuid[])${own}`,
+      `SELECT s.id,s.asset_id,s.user_id,s.acknowledgement,s.acknowledged_at,s.dispute_reason,s.assigned_at,s.version,
+              u.display_name AS employee_name,u.designation AS employee_designation,ud.name AS employee_department
+       FROM assignments s
+       JOIN users u ON u.id=s.user_id
+       LEFT JOIN departments ud ON ud.id=u.department_id
+       WHERE s.ended_at IS NULL AND s.asset_id=ANY($1::uuid[])${own}`,
       values,
       client,
     );

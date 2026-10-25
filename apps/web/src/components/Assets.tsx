@@ -355,7 +355,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
           </Empty>
         ) : null}
         <LoadMore
-          available={query.hasNextPage}
+          available={query.hasNextPage && !query.isPlaceholderData}
           loading={query.isFetchingNextPage}
           onClick={() => {
             void query.fetchNextPage();
@@ -603,8 +603,14 @@ export function AssetDetail() {
                     ? `Assigned ${displayDate(assignment.assignedAt)}`
                     : 'Current assignment recorded'}
                 </p>
-                {manage && assignment.userId ? (
-                  <p className="mono small-text">Employee record: {assignment.userId}</p>
+                {manage ? (
+                  <div className="custody-person">
+                    <strong>{assignment.employeeName || 'Employee name not recorded'}</strong>
+                    {assignment.employeeDesignation ? <span>{assignment.employeeDesignation}</span> : null}
+                    {assignment.employeeDepartment ? (
+                      <span className="muted">{assignment.employeeDepartment}</span>
+                    ) : null}
+                  </div>
                 ) : null}
                 {assignment.acknowledgedAt ? (
                   <p>Confirmed {displayDate(assignment.acknowledgedAt, true)}</p>

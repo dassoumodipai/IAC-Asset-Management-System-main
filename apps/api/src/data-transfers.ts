@@ -58,10 +58,16 @@ const definitions: Definition[] = [
   {
     module: 'people',
     label: 'People and access',
-    columns: ['action', 'email', 'displayName', 'version', 'state', 'roles'],
-    example: { action: 'INVITE', email: 'employee@example.org', displayName: 'Example Employee' },
+    columns: ['action', 'email', 'displayName', 'designation', 'departmentId', 'version', 'state', 'roles'],
+    example: {
+      action: 'INVITE',
+      email: 'employee@example.org',
+      displayName: 'Example Employee',
+      designation: 'Occupational Therapist',
+      departmentId: 'department UUID',
+    },
     description:
-      'APPROVE authorizes registration; INVITE creates or resends an Employee invitation. UPDATE requires current version and state and/or semicolon-separated roles. No passwords, verification or MFA data are imported. Confirming INVITE queues email.',
+      'APPROVE authorizes registration; INVITE creates or resends an Employee invitation. INVITE and UPDATE may set designation and departmentId. UPDATE requires current version, a reason, and at least one account, designation or department field. No passwords, verification or MFA data are imported. Confirming INVITE queues email.',
   },
   {
     module: 'tickets',
@@ -373,22 +379,30 @@ export class DataTransferService {
           throw new UnprocessableEntityException('APPROVE accepts only action and email');
         result = await this.auth.approve(request(), { email });
       } else if (action === 'INVITE') {
-        if (Object.keys(row).some((key) => !['action', 'email', 'displayName'].includes(key)))
+        if (
+          Object.keys(row).some(
+            (key) => !['action', 'email', 'displayName', 'designation', 'departmentId'].includes(key),
+          )
+        )
           throw new UnprocessableEntityException(
-            'INVITE accepts only action, email and displayName',
+            'INVITE accepts action, email, displayName, designation and departmentId',
           );
         result = await this.auth.invite(request(), {
           email,
           ...(row.displayName ? { displayName: row.displayName } : {}),
+          ...(row.designation ? { designation: row.designation } : {}),
+          ...(row.departmentId ? { departmentId: row.departmentId } : {}),
         });
       } else if (action === 'UPDATE') {
         if (row.displayName)
-          throw new UnprocessableEntityException('Account updates accept only state and roles');
+          throw new UnprocessableEntityException('Account updates cannot change displayName');
         const [user] = await this.db.query('SELECT id FROM users WHERE email=$1', [email]);
         if (!user) throw new NotFoundException('Account not found');
         result = await this.auth.editUser(request(version(row)), user.id, {
           ...(row.state ? { state: row.state } : {}),
           ...(row.roles ? { roles: list(row.roles) } : {}),
+          ...(row.designation ? { designation: row.designation } : {}),
+          ...(row.departmentId ? { departmentId: row.departmentId } : {}),
           reason,
         });
         result.id = user.id;

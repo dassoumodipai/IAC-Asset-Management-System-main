@@ -77,7 +77,7 @@ export function ScanPage() {
     ['Category', scan.category],
     ['Type', scan.assetType],
     ['Make', [scan.manufacturer, scan.model].filter(Boolean).join(' ') || null],
-    ['Department', scan.department],
+    ['Asset department', scan.department],
     ['Location', where],
   ];
   return (
@@ -91,6 +91,31 @@ export function ScanPage() {
           <Badge value={scan.status} />
         </div>
         <ScanPhoto code={assetCode} scan={scan} />
+        {scan.custodian ? (
+          <section className="scan-custodian" aria-labelledby="scan-custodian-title">
+            <h2 id="scan-custodian-title">Current custodian</h2>
+            <p className="scan-custodian-name">{scan.custodian.name}</p>
+            {scan.custodian.designation ? <p>{scan.custodian.designation}</p> : null}
+            {scan.custodian.department ? (
+              <p className="muted">{scan.custodian.department}</p>
+            ) : null}
+            <p className="muted small-text">
+              {scan.custodian.acknowledgement === 'ACCEPTED'
+                ? 'Assignment confirmed'
+                : scan.custodian.acknowledgement === 'DISPUTED'
+                  ? 'Assignment needs review'
+                  : 'Assignment awaiting confirmation'}
+              {scan.custodian.assignedAt
+                ? ` · Assigned ${new Date(scan.custodian.assignedAt).toLocaleDateString()}`
+                : ''}
+            </p>
+          </section>
+        ) : (
+          <section className="scan-custodian scan-custodian-empty">
+            <h2>Current custodian</h2>
+            <p>No employee is currently assigned to this asset.</p>
+          </section>
+        )}
         <dl className="scan-details">
           {details
             .filter(([, value]) => value)

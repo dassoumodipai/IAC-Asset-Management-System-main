@@ -20,6 +20,7 @@ const viewKeys = [
   'canViewFull',
   'category',
   'department',
+  'custodian',
   'hasPhoto',
   'id',
   'location',
@@ -116,6 +117,11 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
       'INSERT INTO departments(code,name) VALUES($1,$1) RETURNING id',
       [`${tag}-dept`],
     );
+    await db.query('UPDATE users SET department_id=$2,designation=$3 WHERE id=$1', [
+      holder.id,
+      department.id,
+      'Speech Therapist',
+    ]);
     const [location] = await db.query(
       'INSERT INTO locations(code,site,floor,room) VALUES($1,$2,$3,$4) RETURNING id',
       [`${tag}-loc`, `${tag} site`, '2', '204'],
@@ -162,14 +168,20 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
     assert.equal(result.body.reportable, true);
     assert.equal(result.body.hasPhoto, false);
     assert.equal(result.body.department, `${tag}-dept`);
+    assert.equal(result.body.custodian.name, holder.displayName);
+    assert.equal(result.body.custodian.designation, 'Speech Therapist');
+    assert.equal(result.body.custodian.department, `${tag}-dept`);
+    assert.equal(result.body.custodian.acknowledgement, 'PENDING');
     assert.deepEqual(result.body.location, { site: `${tag} site`, floor: '2', room: '204' });
     assert.equal((await scan(itAdmin)).status, 200);
   });
 
-  it('scan never leaks restricted fields', async () => {
+  it('scan shows current custodian identity without exposing private account or asset fields', async () => {
     for (const user of [other, itAdmin, holder, admin]) {
       const json = JSON.stringify((await scan(user)).body);
-      for (const secret of [serial, barcode, holder.email, holder.displayName])
+      assert.equal(json.includes(holder.displayName), true);
+      assert.equal(json.includes('Speech Therapist'), true);
+      for (const secret of [serial, barcode, holder.email, holder.id])
         assert.equal(json.includes(secret), false);
     }
   });

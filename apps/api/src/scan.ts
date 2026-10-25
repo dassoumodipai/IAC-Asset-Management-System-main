@@ -17,11 +17,22 @@ export class ScanService {
         await this.db.query(
           `SELECT a.id,a.asset_code,a.category,a.asset_type,a.manufacturer,a.model,a.status,
                   d.name AS department,l.code AS location_code,l.site,l.floor,l.room,
+                  custody.employee_name,custody.employee_designation,custody.employee_department,
+                  custody.acknowledgement AS custody_acknowledgement,custody.assigned_at,
                   EXISTS(SELECT 1 FROM asset_photos p WHERE p.asset_id=a.id) AS has_photo,
                   (${scope}) AS can_view_full
            FROM assets a
            LEFT JOIN departments d ON d.id=a.department_id
            LEFT JOIN locations l ON l.id=a.location_id
+           LEFT JOIN LATERAL (
+             SELECT u.display_name AS employee_name,u.designation AS employee_designation,
+                    ud.name AS employee_department,s.acknowledgement,s.assigned_at
+             FROM assignments s
+             JOIN users u ON u.id=s.user_id
+             LEFT JOIN departments ud ON ud.id=u.department_id
+             WHERE s.asset_id=a.id AND s.ended_at IS NULL
+             LIMIT 1
+           ) custody ON true
            WHERE lower(a.asset_code)=lower(btrim($1))`,
           values,
         )
@@ -35,6 +46,15 @@ export class ScanService {
       manufacturer: (row.manufacturer ?? null) as string | null,
       model: (row.model ?? null) as string | null,
       department: (row.department ?? null) as string | null,
+      custodian: row.employee_name
+        ? {
+            name: row.employee_name as string,
+            designation: (row.employee_designation ?? null) as string | null,
+            department: (row.employee_department ?? null) as string | null,
+            acknowledgement: row.custody_acknowledgement as string,
+            assignedAt: row.assigned_at as Date,
+          }
+        : null,
       location: row.location_code
         ? {
             site: (row.site ?? row.location_code) as string,

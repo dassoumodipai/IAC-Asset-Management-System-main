@@ -50,11 +50,24 @@ export function ErrorNotice({ error, retry }: { error: unknown; retry?: () => vo
     </div>
   );
 }
-export function Loading({ label = 'Loading your workspace...' }: { label?: string }) {
+export function Loading({ label = 'Loading…' }: { label?: string }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setVisible(true), 180);
+    return () => window.clearTimeout(timer);
+  }, []);
   return (
-    <div className="loading" role="status">
-      <span className="spinner" aria-hidden="true" />
-      {label}
+    <div className={`loading${visible ? ' is-visible' : ''}`} aria-hidden={!visible}>
+      {visible ? (
+        <>
+          <span className="loading-mark" aria-hidden="true">
+            <img src="/image.png" alt="" />
+          </span>
+          <span role="status" aria-live="polite">
+            {label}
+          </span>
+        </>
+      ) : null}
     </div>
   );
 }

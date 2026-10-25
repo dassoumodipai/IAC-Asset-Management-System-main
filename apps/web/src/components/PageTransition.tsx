@@ -1,45 +1,17 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import gsap from 'gsap';
 
-// On route changes the page content slides up into place while the sidebar logo spins once.
-// Skipped on first paint and for reduced motion.
+// Reset the content scroll position when navigating between pages without moving the full layout.
 export function PageTransition() {
   const { pathname } = useLocation();
-  const firstPaint = useRef(true);
+  const previousPath = useRef(pathname);
 
   useLayoutEffect(() => {
-    if (firstPaint.current) {
-      firstPaint.current = false;
-      return;
-    }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (previousPath.current === pathname) return;
+    previousPath.current = pathname;
     const content = document.getElementById('main');
-    const logo = document.querySelector('.brand img');
-    const timeline = gsap.timeline();
-    if (content)
-      timeline.fromTo(
-        content,
-        { y: 18, autoAlpha: 0 },
-        {
-          y: 0,
-          autoAlpha: 1,
-          duration: 0.45,
-          ease: 'power3.out',
-          clearProps: 'transform,opacity,visibility',
-        },
-        0,
-      );
-    if (logo)
-      timeline.fromTo(
-        logo,
-        { rotation: 0 },
-        { rotation: 360, duration: 0.6, ease: 'power2.inOut', clearProps: 'transform' },
-        0,
-      );
-    return () => {
-      timeline.progress(1).kill();
-    };
+    content?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [pathname]);
 
   return null;

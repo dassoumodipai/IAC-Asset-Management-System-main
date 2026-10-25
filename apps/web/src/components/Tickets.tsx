@@ -198,7 +198,7 @@ export function TicketList() {
           </Empty>
         ) : null}
         <LoadMore
-          available={query.hasNextPage}
+          available={query.hasNextPage && !query.isPlaceholderData}
           loading={query.isFetchingNextPage}
           onClick={() => {
             void query.fetchNextPage();

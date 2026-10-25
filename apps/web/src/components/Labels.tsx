@@ -314,7 +314,7 @@ export function LabelPrintPage() {
             <p className="muted">No assets match these filters.</p>
           ) : null}
           <LoadMore
-            available={query.hasNextPage}
+            available={query.hasNextPage && !query.isPlaceholderData}
             loading={query.isFetchingNextPage}
             onClick={() => {
               void query.fetchNextPage();
@@ -412,7 +412,7 @@ export function LabelPrintPage() {
                     className="label-qr-code"
                     dangerouslySetInnerHTML={{ __html: qrs[asset.assetCode] ?? '' }}
                   />
-                  <img className="label-qr-logo" src="/logo.png" alt="" />
+                  <img className="label-qr-logo" src="/image.png" alt="" />
                 </div>
                 <div className="label-text">
                   <span className="label-brand">IAC Assets</span>

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, queryString } from './api';
 import type { RequestOptions } from './api';
 import type { Page } from './types';
@@ -10,6 +10,7 @@ export function usePages<T>(
 ) {
   return useInfiniteQuery({
     queryKey: [path, filters],
+    placeholderData: keepPreviousData,
     enabled,
     initialPageParam: '',
     queryFn: ({ pageParam, signal }) =>
