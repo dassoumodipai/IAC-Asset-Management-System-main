@@ -795,6 +795,7 @@ td:first-child {
   opacity: 1;
 }
 .loading-mark {
+  position: relative;
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
@@ -805,11 +806,24 @@ td:first-child {
   background: #fff;
   box-shadow: 0 2px 8px rgb(25 43 58 / 8%);
 }
+.loading-mark::after {
+  position: absolute;
+  inset: -3px;
+  border: 2px solid transparent;
+  border-top-color: #2f6f91;
+  border-right-color: #a9cddd;
+  border-radius: 50%;
+  content: '';
+  animation: logo-loading-spin 1s linear infinite;
+}
 .loading-mark img {
   width: 25px;
   height: 25px;
   object-fit: contain;
   animation: logo-loading-spin 1.6s linear infinite;
+}
+.loading-mark.is-fallback {
+  background: #edf4f8;
 }
 @keyframes logo-loading-spin {
   to { transform: rotate(360deg); }

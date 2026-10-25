@@ -61,7 +61,14 @@ export function Loading({ label = 'Loading…' }: { label?: string }) {
       {visible ? (
         <>
           <span className="loading-mark" aria-hidden="true">
-            <img src="/image.png" alt="" />
+            <img
+              src="/loading-logo.png"
+              alt=""
+              onError={(event) => {
+                event.currentTarget.hidden = true;
+                event.currentTarget.parentElement?.classList.add('is-fallback');
+              }}
+            />
           </span>
           <span role="status" aria-live="polite">
             {label}
