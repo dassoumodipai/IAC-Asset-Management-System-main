@@ -77,6 +77,8 @@ export interface TimelineEvent {
   type?: string;
   summary?: string;
   body?: string;
+  oldStatus?: string | null;
+  newStatus?: string | null;
   visibility?: 'PUBLIC' | 'INTERNAL';
   authorName?: string;
 }

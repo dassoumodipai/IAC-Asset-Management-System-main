@@ -257,7 +257,7 @@ test('label preview renders 1 cell per page on THERMAL_50x25', async ({ page }) 
 test('scanner rejects a foreign label and follows an own-origin label', async ({ page }) => {
   const state = await mockApi(page);
   await page.goto('/dashboard');
-  await page.getByRole('button', { name: 'Scan', exact: true }).click();
+  await page.getByRole('button', { name: 'Open camera scanner', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Scan asset label' });
   await expect(dialog).toBeVisible();
   await page.waitForFunction(

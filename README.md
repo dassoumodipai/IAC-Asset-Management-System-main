@@ -2,6 +2,12 @@
 
 A local MVP implementation of the approved IAC asset custody and support plan: React/TypeScript, NestJS, PostgreSQL, revocable cookie sessions and durable SMTP notifications. Includes Employee, Admin and IT/Admin workflows, reviewed imports and timestamped audit. This is ready for local evaluation; production provisioning and organization policy configuration remain separate.
 
+## Deployment
+
+- [Deploy to Oracle Cloud Infrastructure](docs/DEPLOY_ORACLE_CLOUD.md)
+- [Generic single-server Docker deployment](docs/DEPLOY_SINGLE_SERVER.md)
+- [Production operations and release guidance](docs/PRODUCTION.md)
+
 ## Start locally
 
 Requirements: Node.js 24, npm, Docker Desktop/Engine. Run in this directory:

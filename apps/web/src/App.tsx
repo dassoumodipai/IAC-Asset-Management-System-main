@@ -204,7 +204,7 @@ function Shell() {
             </span>
             {isStaff(user) ? 'Support desk' : 'My tickets'}
           </NavLink>
-          <NavLink to="/install">
+          <NavLink to="/install" className="install-app-nav">
             <span className="nav-icon"><NavIcon name="install" /></span>
             Install app
           </NavLink>
@@ -287,7 +287,7 @@ function Shell() {
             </span>
           </Link>
           <ScanButton />
-          <InstallMenuItem />
+          <InstallMenuItem className="install-header-button" />
           <button
             className="button text small"
             type="button"

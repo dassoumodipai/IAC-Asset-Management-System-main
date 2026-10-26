@@ -162,7 +162,7 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
   it('staff sees basic view', async () => {
     const result = await scan(other);
     assert.equal(result.status, 200);
-    assert.deepEqual(Object.keys(result.body).sort(), viewKeys);
+    assert.deepEqual(Object.keys(result.body).sort(), [...viewKeys].sort());
     assert.equal(result.body.id, asset.id);
     assert.equal(result.body.canViewFull, false);
     assert.equal(result.body.reportable, true);

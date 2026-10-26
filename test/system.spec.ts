@@ -8,7 +8,7 @@ const url = process.env.TEST_DATABASE_URL;
 if (!url || !new URL(url).pathname.endsWith('_test'))
   throw new Error('Isolated TEST_DATABASE_URL required');
 const pool = new Pool({ connectionString: url });
-const origin = 'http://127.0.0.1:5173';
+const origin = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173';
 let admin: APIRequestContext, employee: APIRequestContext, other: APIRequestContext;
 let csrfAdmin = '',
   csrfEmployee = '',
@@ -352,7 +352,11 @@ await page.goto('/assets/new');
     await page.getByLabel('Department', { exact: true }).click();
     await page.locator('#departmentId ~ ul').getByRole('option', { name: department.name }).first().click();
     await page.getByLabel('Location', { exact: true }).click();
-    await page.locator('#locationId ~ ul').getByRole('option', { name: location.name }).first().click();
+    const locationLabel = [location.site, location.building, location.floor, location.room]
+      .filter(Boolean)
+      .join(' / ');
+    await page.locator('#locationId ~ ul').getByRole('option', { name: locationLabel }).click();
+    await expect(page.getByRole('combobox', { name: 'Location' })).toContainText(locationLabel);
     await page.getByRole('button', { name: 'Create asset', exact: true }).click();
     await expect(page).toHaveURL(/assets\/[a-f0-9-]+$/);
     const assetId = page.url().split('/').pop()!;

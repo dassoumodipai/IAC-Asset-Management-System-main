@@ -2930,6 +2930,13 @@ td {
 }
 
 /* Responsive shell */
+@media (min-width: 651px) {
+  .install-app-nav,
+  .install-header-button {
+    display: none !important;
+  }
+}
+
 @media (max-width: 1200px) {
   .sidebar {
     width: 216px;

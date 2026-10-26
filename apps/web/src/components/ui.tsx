@@ -318,20 +318,49 @@ export function Timeline({
     type?: string;
     summary?: string;
     body?: string;
+    oldStatus?: string | null;
+    newStatus?: string | null;
     visibility?: string;
     authorName?: string;
   }[];
 }) {
+  const titleFor = (item: (typeof items)[number]) => {
+    if (item.authorName) return item.authorName;
+    const labels: Record<string, string> = {
+      CREATED: 'Ticket created',
+      STATUS_CHANGED: 'Status changed',
+      OWNER_CHANGED: 'Owner changed',
+      COMMENT: 'Comment',
+      ASSET_CREATED: 'Asset created',
+      ASSET_UPDATED: 'Asset updated',
+      ASSIGNMENT_CREATED: 'Asset assigned',
+      ASSIGNMENT_ENDED: 'Assignment ended',
+    };
+    const kind = item.kind ?? item.type ?? '';
+    return labels[kind] ?? (kind ? kind.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase()) : 'Update');
+  };
+  const bodyFor = (item: (typeof items)[number]) => {
+    const body = item.body?.trim() || item.summary?.trim();
+    if (item.oldStatus && item.newStatus) {
+      const from = item.oldStatus.toLowerCase().replaceAll('_', ' ');
+      const to = item.newStatus.toLowerCase().replaceAll('_', ' ');
+      const transition = `${from[0].toUpperCase()}${from.slice(1)} → ${to[0].toUpperCase()}${to.slice(1)}`;
+      return body ? `${transition} · ${body}` : transition;
+    }
+    if (body) return body;
+    if ((item.kind ?? item.type) === 'OWNER_CHANGED') return 'Ticket owner assignment was updated.';
+    return '';
+  };
   return items.length ? (
     <ol className="timeline">
       {items.map((item) => (
         <li key={item.id}>
           <div className="timeline-meta">
-            <strong>{item.authorName ?? item.kind ?? item.type ?? 'Update'}</strong>
+            <strong>{titleFor(item)}</strong>
             <time dateTime={item.createdAt}>{displayDate(item.createdAt, true)}</time>
             {item.visibility === 'INTERNAL' ? <Badge value="INTERNAL" /> : null}
           </div>
-          <p className="preserve">{item.body ?? item.summary}</p>
+          {bodyFor(item) ? <p className="preserve">{bodyFor(item)}</p> : null}
         </li>
       ))}
     </ol>

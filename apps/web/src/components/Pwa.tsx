@@ -42,7 +42,7 @@ export function UpdatePrompt() {
   );
 }
 
-export function InstallMenuItem({ alwaysShow = false, onUnavailable }: { alwaysShow?: boolean; onUnavailable?: () => void }) {
+export function InstallMenuItem({ alwaysShow = false, onUnavailable, className }: { alwaysShow?: boolean; onUnavailable?: () => void; className?: string }) {
   const [event, setEvent] = useState<InstallPromptEvent | null>(deferredInstallPrompt);
   const [installed, setInstalled] = useState(isStandalone);
   useEffect(() => {
@@ -67,7 +67,7 @@ export function InstallMenuItem({ alwaysShow = false, onUnavailable }: { alwaysS
   return (
     <button
       type="button"
-      className={alwaysShow ? 'button' : 'button text small'}
+      className={`${alwaysShow ? 'button' : 'button text small'}${className ? ` ${className}` : ''}`}
       onClick={async () => {
         if (!event) { onUnavailable?.(); return; }
         const pending = event;

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Controller,
   Get,
   Inject,
@@ -15,7 +14,7 @@ import {
 import { z } from 'zod';
 import webpush from 'web-push';
 import { Db } from './db';
-import { configuration, encrypt, hash, decrypt } from './config';
+import { encrypt, hash, decrypt } from './config';
 import { AuthRequest, requireRole, SessionGuard } from './security';
 
 const subscriptionSchema = z.object({

@@ -59,6 +59,8 @@ async function mockApi(page: Page, onInvitation: (route: Route) => Promise<void>
       await route.fulfill({ json: { items: users, nextCursor: null } });
     } else if (method === 'GET' && path === '/api/v1/transfers/definitions') {
       await route.fulfill({ json: { items: [] } });
+    } else if (method === 'GET' && path === '/api/v1/references') {
+      await route.fulfill({ json: { items: [] } });
     } else if (method === 'GET' && path === '/api/v1/auth/csrf') {
       await route.fulfill({ json: { csrfToken: 'synthetic-csrf-token' } });
     } else if (method === 'POST' && path === '/api/v1/invitations') {
@@ -113,7 +115,12 @@ test('only invited users can resend; pending requests prevent duplicates and exp
   await expect(page.getByRole('button', { name: /^Manage / }).first()).toBeDisabled();
   expect(posts).toEqual([
     {
-      body: { email: invited.email, displayName: invited.displayName },
+      body: {
+        email: invited.email,
+        displayName: invited.displayName,
+        designation: null,
+        departmentId: null,
+      },
       csrf: 'synthetic-csrf-token',
     },
   ]);
@@ -164,8 +171,18 @@ test('resend failure is actionable and allows a successful retry', async ({ page
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(resend).toBeEnabled();
   expect(posts).toEqual([
-    { email: invited.email, displayName: invited.displayName },
-    { email: invited.email, displayName: invited.displayName },
+    {
+      email: invited.email,
+      displayName: invited.displayName,
+      designation: null,
+      departmentId: null,
+    },
+    {
+      email: invited.email,
+      displayName: invited.displayName,
+      designation: null,
+      departmentId: null,
+    },
   ]);
   expect(unexpected).toEqual([]);
 });

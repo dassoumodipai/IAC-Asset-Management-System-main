@@ -6,11 +6,16 @@ import { pwaOptions } from './pwa.config';
 export default defineConfig({
   plugins: [react(), tailwindcss(), VitePWA(pwaOptions)],
   server: {
-    port: 5173,
+    port: Number(process.env.VITE_PORT) || 5173,
     strictPort: true,
     // Dev only: lets a temporary HTTPS tunnel reach the dev server for phone testing.
     allowedHosts: ['.trycloudflare.com', '.devtunnels.ms'],
-    proxy: { '/api': { target: 'http://127.0.0.1:3000', changeOrigin: false } },
+    proxy: {
+      '/api': {
+        target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:3000',
+        changeOrigin: false,
+      },
+    },
   },
   build: { sourcemap: false },
 });
