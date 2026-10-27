@@ -67,7 +67,7 @@ const definitions: Definition[] = [
       departmentId: 'department UUID',
     },
     description:
-      'APPROVE authorizes registration; INVITE creates or resends an Employee invitation. INVITE and UPDATE may set designation and departmentId. UPDATE requires current version, a reason, and at least one account, designation or department field. No passwords, verification or MFA data are imported. Confirming INVITE queues email.',
+      'APPROVE authorizes registration for an email only. INVITE creates or resends an Employee invitation and accepts name, designation and a department UUID, code or exact name. Optional state/roles columns are checked, but new accounts remain INVITED until the employee accepts. UPDATE requires current version and a reason; department may be a UUID, code or exact name. No passwords, verification or MFA data are imported. Confirming INVITE queues email.',
   },
   {
     module: 'tickets',
@@ -199,7 +199,7 @@ function duplicateInvitationRows(module: string, rows: Row[]): Set<number> {
   const duplicates = new Set<number>();
   if (module !== 'people') return duplicates;
   rows.forEach((row, index) => {
-    if (row.action?.trim() !== 'INVITE') return;
+    if (row.action?.trim().toUpperCase() !== 'INVITE') return;
     const email = row.email?.trim().toLowerCase();
     if (!email) return;
     if (emails.has(email)) duplicates.add(index);
@@ -296,6 +296,24 @@ export class DataTransferService {
     if (!row) throw new NotFoundException('Referenced record not found');
     return row;
   }
+  private async departmentId(value: string): Promise<string> {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+      const [department] = await this.db.query(
+        'SELECT id FROM departments WHERE id=$1 AND active=true',
+        [value],
+      );
+      if (department) return department.id;
+    } else {
+      const matches = await this.db.query(
+        'SELECT id FROM departments WHERE active=true AND (lower(code)=lower($1) OR lower(name)=lower($1)) LIMIT 2',
+        [value],
+      );
+      if (matches.length === 1) return matches[0].id;
+      if (matches.length > 1)
+        throw new UnprocessableEntityException('Department value matches more than one department; use its UUID');
+    }
+    throw new NotFoundException('Department not found. Use an active department name, code or UUID.');
+  }
   private async execute(
     req: AuthRequest,
     module: string,
@@ -314,7 +332,8 @@ export class DataTransferService {
         .filter(([, value]) => value.trim() !== '')
         .map(([key, value]) => [key, value.trim()]),
     );
-    const action = row.action;
+    const action = row.action?.toUpperCase();
+    if (action) row.action = action;
     let result: any;
     const request = (currentVersion?: number) =>
       this.rowRequest(req, batchId, rowNumber, currentVersion);
@@ -376,22 +395,29 @@ export class DataTransferService {
       const email = parse(z.string().email().max(254), required(row, 'email')).toLowerCase();
       if (action === 'APPROVE') {
         if (Object.keys(row).some((key) => !['action', 'email'].includes(key)))
-          throw new UnprocessableEntityException('APPROVE accepts only action and email');
+          throw new UnprocessableEntityException('This row includes employee details. Use INVITE to create an account; APPROVE accepts only an email.');
         result = await this.auth.approve(request(), { email });
       } else if (action === 'INVITE') {
         if (
           Object.keys(row).some(
-            (key) => !['action', 'email', 'displayName', 'designation', 'departmentId'].includes(key),
+            (key) => !['action', 'email', 'displayName', 'designation', 'departmentId', 'version', 'state', 'roles'].includes(key),
           )
         )
           throw new UnprocessableEntityException(
-            'INVITE accepts action, email, displayName, designation and departmentId',
+            'INVITE accepts email, employee name, designation, department, state and roles',
           );
+        if (row.version)
+          throw new UnprocessableEntityException('INVITE must leave version blank');
+        if (row.state && !['ACTIVE', 'INVITED'].includes(row.state.toUpperCase()))
+          throw new UnprocessableEntityException('For an invitation, state must be Active or Invited; the account stays invited until accepted');
+        const roles = row.roles ? list(row.roles).map((value) => value.toUpperCase()) : [];
+        if (roles.some((role) => role !== 'EMPLOYEE'))
+          throw new UnprocessableEntityException('Bulk invitations grant Employee access only');
         result = await this.auth.invite(request(), {
           email,
           ...(row.displayName ? { displayName: row.displayName } : {}),
           ...(row.designation ? { designation: row.designation } : {}),
-          ...(row.departmentId ? { departmentId: row.departmentId } : {}),
+          ...(row.departmentId ? { departmentId: await this.departmentId(row.departmentId) } : {}),
         });
       } else if (action === 'UPDATE') {
         if (row.displayName)
@@ -399,10 +425,10 @@ export class DataTransferService {
         const [user] = await this.db.query('SELECT id FROM users WHERE email=$1', [email]);
         if (!user) throw new NotFoundException('Account not found');
         result = await this.auth.editUser(request(version(row)), user.id, {
-          ...(row.state ? { state: row.state } : {}),
-          ...(row.roles ? { roles: list(row.roles) } : {}),
+          ...(row.state ? { state: row.state.toUpperCase() } : {}),
+          ...(row.roles ? { roles: list(row.roles).map((role) => role.toUpperCase()) } : {}),
           ...(row.designation ? { designation: row.designation } : {}),
-          ...(row.departmentId ? { departmentId: row.departmentId } : {}),
+          ...(row.departmentId ? { departmentId: await this.departmentId(row.departmentId) } : {}),
           reason,
         });
         result.id = user.id;
@@ -499,7 +525,10 @@ export class DataTransferService {
     return {
       rowNumber,
       ...(result?.id ? { id: result.id } : {}),
-      summary: `${definition.label}: ${action || (module === 'tickets' ? 'CREATE' : 'UPDATE')}`,
+      summary:
+        module === 'people' && action === 'INVITE'
+          ? 'Employee invitation; account remains invited until accepted'
+          : `${definition.label}: ${action || (module === 'tickets' ? 'CREATE' : 'UPDATE')}`,
     };
   }
   async preview(req: AuthRequest, body: unknown) {
