@@ -67,7 +67,7 @@ const definitions: Definition[] = [
       departmentId: 'department UUID',
     },
     description:
-      'APPROVE authorizes registration for an email only. INVITE creates or resends an Employee invitation and accepts name, designation and a department UUID, code or exact name. Optional state/roles columns are checked, but new accounts remain INVITED until the employee accepts. UPDATE requires current version and a reason; department may be a UUID, code or exact name. No passwords, verification or MFA data are imported. Confirming INVITE queues email.',
+      'APPROVE authorizes registration for an email only. INVITE prepares an Employee account and accepts name, designation and a department UUID, code or exact name. New accounts remain INVITED until accepted. UPDATE requires current version and a reason. No passwords, verification or MFA data are imported. Use the email option to send invitations now or leave it off and send them later.',
   },
   {
     module: 'tickets',
@@ -165,6 +165,7 @@ const inputSchema = z
       .regex(/^[a-fA-F0-9]{64}$/)
       .transform((value) => value.toLowerCase()),
     reason: text(1000),
+    sendEmails: z.boolean().default(false),
     rows: z
       .array(z.record(z.string().min(1).max(100), z.string().max(5000)))
       .min(1)
@@ -321,6 +322,7 @@ export class DataTransferService {
     reason: string,
     batchId: string,
     rowNumber: number,
+    sendEmails = false,
   ): Promise<RowResult> {
     const definition = this.definition(req, module);
     if (Object.keys(raw).some((key) => !definition.columns.includes(key)))
@@ -418,6 +420,7 @@ export class DataTransferService {
           ...(row.displayName ? { displayName: row.displayName } : {}),
           ...(row.designation ? { designation: row.designation } : {}),
           ...(row.departmentId ? { departmentId: await this.departmentId(row.departmentId) } : {}),
+          sendEmail: sendEmails,
         });
       } else if (action === 'UPDATE') {
         if (row.displayName)
@@ -514,6 +517,7 @@ export class DataTransferService {
             ...(action === 'TRANSFER' ? { reason } : {}),
           },
           action === 'TRANSFER',
+          { sendEmail: sendEmails, allowInvited: true },
         );
       }
     } else {
@@ -563,6 +567,7 @@ export class DataTransferService {
                 input.reason,
                 batchId,
                 i + 1,
+                input.sendEmails,
               );
             });
             rows.push({ rowNumber: i + 1, valid: true, errors: [], summary: result.summary });
@@ -588,14 +593,17 @@ export class DataTransferService {
       rows,
       warnings: [
         'Preview writes are rolled back. Sequence numbers may be reserved and are never reused.',
-        'Confirming applies the complete batch and queues normal notifications. Blank optional cells do not clear values.',
+        input.sendEmails
+          ? 'Email is on: invitations and assignment notices may be sent when you confirm.'
+          : 'Email is off: invitations and assignment notices are not sent. You can invite these accounts later.',
+        'Blank optional cells do not clear existing values.',
       ],
     };
     await this.db.tx(async (client) => {
       const actor = await this.currentActor(req);
       this.definition(actor, input.module);
       await this.db.query(
-        'INSERT INTO data_transfers(id,actor_id,module,source_filename,source_sha256,raw_rows,reason,preview) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+        'INSERT INTO data_transfers(id,actor_id,module,source_filename,source_sha256,raw_rows,reason,preview,send_emails) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
         [
           batchId,
           actor.user.id,
@@ -605,6 +613,7 @@ export class DataTransferService {
           JSON.stringify(input.rows),
           input.reason,
           JSON.stringify(preview),
+          input.sendEmails,
         ],
         client,
       );
@@ -648,6 +657,7 @@ export class DataTransferService {
               batch.reason,
               batchId,
               i + 1,
+              batch.send_emails,
             ),
           );
         } catch (error) {

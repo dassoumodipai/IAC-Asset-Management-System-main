@@ -729,7 +729,7 @@ export class AuthService {
   async invite(req: AuthRequest, body: unknown) {
     requireRole(req, 'ADMIN');
     const data = z
-      .object({ email, displayName: name.optional(), designation, departmentId })
+      .object({ email, displayName: name.optional(), designation, departmentId, sendEmail: z.boolean().default(true) })
       .strict()
       .parse(body);
     return this.db.tx(async (client) => {
@@ -768,8 +768,8 @@ export class AuthService {
         [user.id, req.user.id],
         client,
       );
-      await this.issue(client, user, 'INVITE');
-      await this.db.audit(client, req.user, 'USER', user.id, 'INVITED');
+      if (data.sendEmail) await this.issue(client, user, 'INVITE');
+      await this.db.audit(client, req.user, 'USER', user.id, data.sendEmail ? 'INVITED' : 'INVITE_PREPARED');
       return { id: user.id, email: user.email };
     });
   }

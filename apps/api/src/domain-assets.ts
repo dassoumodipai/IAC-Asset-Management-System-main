@@ -199,7 +199,13 @@ export class AssetDomain extends MasterDomain {
       return this.asset(req, assetId, c);
     });
   }
-  async assign(req: AuthRequest, assetId: string, body: unknown, reassign = false) {
+  async assign(
+    req: AuthRequest,
+    assetId: string,
+    body: unknown,
+    reassign = false,
+    options: { sendEmail?: boolean; allowInvited?: boolean } = {},
+  ) {
     requireRole(req, 'ADMIN');
     id(assetId);
     const data: any = parse(reassign ? reassignInput : assignInput, body);
@@ -226,7 +232,7 @@ export class AssetDomain extends MasterDomain {
             throw new ConflictException('Employee already holds this asset');
         } else if (old || asset.status !== 'In Store')
           throw new ConflictException('Asset must be In Store without current custody');
-        const user = await eligibleEmployee(this.db, data.userId, c);
+        const user = await eligibleEmployee(this.db, data.userId, c, options.allowInvited === true);
         if (old) {
           await this.db.query(
             'UPDATE assignments SET ended_at=now(),ended_by=$2,version=version+1 WHERE id=$1',
@@ -238,7 +244,7 @@ export class AssetDomain extends MasterDomain {
             [old.id, req.user.id, JSON.stringify({ reason: data.reason })],
             c,
           );
-          await this.db.notify(c, `assignment:${old.id}:ended`, 'ASSIGNMENT_ENDED', [old.email], {
+          if (options.sendEmail !== false) await this.db.notify(c, `assignment:${old.id}:ended`, 'ASSIGNMENT_ENDED', [old.email], {
             subject: `Asset ${asset.asset_code} returned`,
             text: 'Your custody record was closed. Sign in to review your assigned assets.',
           });
@@ -279,7 +285,7 @@ export class AssetDomain extends MasterDomain {
           reassign ? 'ASSET_REASSIGNED' : 'ASSET_ASSIGNED',
           { assetId, userId: user.id, priorAssignmentId: old?.id || null },
         );
-        await this.db.notify(
+        if (options.sendEmail !== false) await this.db.notify(
           c,
           `assignment:${row.id}:created`,
           'ASSIGNMENT_CREATED',

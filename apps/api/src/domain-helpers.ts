@@ -409,12 +409,12 @@ export async function validateAsset(db: Db, data: any, c: PoolClient, previous?:
       'Terminal assets require disposal date and evidence reference',
     );
 }
-export async function eligibleEmployee(db: Db, userId: string, c: PoolClient) {
+export async function eligibleEmployee(db: Db, userId: string, c: PoolClient, allowInvited = false) {
   return found(
     (
       await db.query(
-        `SELECT u.id,u.email FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL FOR SHARE OF u`,
-        [userId],
+        `SELECT u.id,u.email FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL)) FOR SHARE OF u`,
+        [userId, allowInvited],
         c,
       )
     )[0],

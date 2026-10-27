@@ -322,6 +322,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
     client = useQueryClient();
   const [file, setFile] = useState<Awaited<ReturnType<typeof readTable>>>(),
     [reason, setReason] = useState('');
+  const [sendEmails, setSendEmails] = useState(false);
   const [preview, setPreview] = useState<Preview>(),
     [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false),
@@ -342,6 +343,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
     setFile(undefined);
     setPreview(undefined);
     setConfirmed(false);
+    setSendEmails(false);
     setError(undefined);
     setMessage('');
     setBusy(false);
@@ -391,6 +393,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
         filename: file.filename,
         sha256: file.sha256,
         reason: reason.trim(),
+        sendEmails,
         rows: file.rows,
       };
       if (new TextEncoder().encode(JSON.stringify(body)).length > 6 * 1024 * 1024)
@@ -505,6 +508,23 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
           }}
         />
       </Field>
+      {module === 'people' || module === 'assignments' ? (
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={sendEmails}
+            disabled={disabled || busy}
+            onChange={(event) => {
+              generation.current++;
+              setSendEmails(event.target.checked);
+              setPreview(undefined);
+              setConfirmed(false);
+              setMessage('');
+            }}
+          />
+          Send invitation and asset assignment emails after import
+        </label>
+      ) : null}
       <button
         type="button"
         className="button secondary"
@@ -554,8 +574,10 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
                   disabled={disabled || busy}
                   onChange={(event) => setConfirmed(event.target.checked)}
                 />
-                I reviewed these changes and authorize applying them, including any assignment or
-                invitation notifications.
+                I reviewed these changes and authorize applying them.{' '}
+                {sendEmails
+                  ? 'Invitation and assignment emails may be sent.'
+                  : 'Email is off for this batch.'}
               </label>
               <button
                 type="button"
