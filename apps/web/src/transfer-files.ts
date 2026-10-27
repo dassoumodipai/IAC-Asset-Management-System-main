@@ -162,7 +162,21 @@ export async function readTable(file: File) {
     table = parseCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   else if (/\.xlsx$/i.test(file.name)) {
     await checkWorkbookZip(bytes);
-    const Excel = await import('exceljs');
+    let Excel: typeof import('exceljs');
+    try {
+      Excel = await import('exceljs');
+    } catch (error) {
+      if (
+        error instanceof TypeError &&
+        /dynamically imported module|module script failed|importing a module script failed/i.test(
+          error.message,
+        )
+      )
+        throw new Error(
+          'The app was updated while this page was open. Reload the page, then choose the XLSX file again.',
+        );
+      throw error;
+    }
     const workbook = new Excel.Workbook();
     await workbook.xlsx.load(buffer as never);
     if (workbook.worksheets.length !== 1)
