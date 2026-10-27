@@ -5,6 +5,8 @@ import { cellText, downloadTable, readTable } from '../transfer-files';
 import type { TransferColumn, TransferFormat } from '../transfer-files';
 import { ErrorNotice, Field, Loading } from './ui';
 
+const MAX_BULK_IMPORT_ROWS = 500;
+
 export interface TransferField {
   key: string;
   label?: string;
@@ -358,9 +360,9 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
     setBusy(true);
     try {
       const result = await readTable(input);
-      if (result.rows.length > 50)
+      if (result.rows.length > MAX_BULK_IMPORT_ROWS)
         throw new Error(
-          'Bulk imports accept at most 50 records per batch. Split larger files into smaller batches.',
+          `Bulk imports accept at most ${MAX_BULK_IMPORT_ROWS} records per batch. Split larger files into smaller batches.`,
         );
       if (
         definition &&
@@ -391,8 +393,8 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
         reason: reason.trim(),
         rows: file.rows,
       };
-      if (new TextEncoder().encode(JSON.stringify(body)).length > 60000)
-        throw new Error('This batch exceeds 60 KB. Split it into smaller files.');
+      if (new TextEncoder().encode(JSON.stringify(body)).length > 6 * 1024 * 1024)
+        throw new Error('This batch exceeds 6 MiB. Reduce the file size or split it into smaller batches.');
       const result = await api<Preview>('/transfers/preview', { method: 'POST', body });
       if (active.current && selected === generation.current) setPreview(result);
     } catch (caught) {
@@ -461,7 +463,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
     <details className="transfer-tools bulk-transfer">
       <summary>Bulk import {definition.label}</summary>
       <p className="muted small-text">
-        {definition.description} Use at most 50 records per batch. Nothing is applied until you
+        {definition.description} Use at most {MAX_BULK_IMPORT_ROWS} records per batch. Nothing is applied until you
         confirm a valid preview.
       </p>
       <ActionButtons

@@ -504,8 +504,8 @@ export class DataTransferService {
   }
   async preview(req: AuthRequest, body: unknown) {
     const input = parse(inputSchema, body);
-    if (Buffer.byteLength(JSON.stringify(body), 'utf8') > 60_000)
-      throw new UnprocessableEntityException('Transfer requests must not exceed 60,000 bytes');
+    if (Buffer.byteLength(JSON.stringify(body), 'utf8') > 6 * 1024 * 1024)
+      throw new UnprocessableEntityException('Transfer requests must not exceed 6 MiB');
     const definition = this.definition(req, input.module);
     if (input.rows.some((row) => Object.keys(row).some((key) => !definition.columns.includes(key))))
       throw new UnprocessableEntityException(

@@ -3,6 +3,7 @@ export type Page<T> = { items: T[]; nextCursor: string | null };
 export interface User {
   id: string;
   email: string;
+  pendingEmail?: string | null;
   displayName: string;
   designation?: string | null;
   departmentId?: string | null;

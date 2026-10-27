@@ -34,6 +34,8 @@ export function UserAdmin() {
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<User>();
   const [roles, setRoles] = useState<Role[]>([]);
+  const [selectedDisplayName, setSelectedDisplayName] = useState('');
+  const [selectedEmail, setSelectedEmail] = useState('');
   const [selectedDesignation, setSelectedDesignation] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [reason, setReason] = useState('');
@@ -71,6 +73,8 @@ export function UserAdmin() {
   function select(user: User) {
     setSelected(user);
     setRoles([...user.roles]);
+    setSelectedDisplayName(user.displayName);
+    setSelectedEmail(user.email);
     setSelectedDesignation(user.designation || '');
     setSelectedDepartmentId(user.departmentId || '');
     setState(user.state === 'DISABLED' ? 'DISABLED' : 'ACTIVE');
@@ -113,17 +117,35 @@ export function UserAdmin() {
           ...(roles.slice().sort().join(',') !== selected.roles.slice().sort().join(',')
             ? { roles }
             : {}),
+          ...(selectedDisplayName.trim() !== selected.displayName
+            ? { displayName: selectedDisplayName.trim() }
+            : {}),
+          ...(selectedEmail.trim().toLowerCase() !== selected.email
+            ? { email: selectedEmail.trim() }
+            : {}),
           designation: selectedDesignation.trim() || null,
           departmentId: selectedDepartmentId || null,
           reason: reason.trim(),
         },
         version: selected.version,
       })
-      .then(() => true)
-      .catch(() => false);
+      .then((value) => value.message ?? 'Account updated.')
+      .catch(() => '');
     if (result) {
       setSelected(undefined);
-      setMessage('Account updated. Session access is enforced on the next request.');
+      setMessage(result);
+    }
+  }
+  async function sendPasswordReset() {
+    if (!selected || !reason.trim() || action.isPending) return;
+    const result = await action.mutateAsync({
+      path: `/users/${selected.id}/password-reset`,
+      body: { reason: reason.trim() },
+      idempotent: true,
+    }).then((value) => value.message ?? 'Password reset instructions sent.').catch(() => '');
+    if (result) {
+      setSelected(undefined);
+      setMessage(result);
     }
   }
   return (
@@ -138,6 +160,7 @@ export function UserAdmin() {
         columns={[
           'id',
           'email',
+          'pendingEmail',
           'displayName',
           'designation',
           'department',
@@ -151,6 +174,7 @@ export function UserAdmin() {
           (await fetchAllPages<User>('/users')).map((user) => ({
             id: user.id,
             email: user.email,
+            pendingEmail: user.pendingEmail,
             displayName: user.displayName,
             designation: user.designation,
             department: user.department,
@@ -284,6 +308,8 @@ export function UserAdmin() {
           <FormTransfer
             formId={`people-access:${selected.id}`}
             fields={[
+              { key: 'displayName', required: true },
+              { key: 'email', required: true },
               {
                 key: 'roles',
                 type: 'list',
@@ -295,10 +321,12 @@ export function UserAdmin() {
               { key: 'departmentId' },
               { key: 'reason', required: true },
             ]}
-            values={{ roles, state, designation: selectedDesignation, departmentId: selectedDepartmentId, reason }}
+            values={{ displayName: selectedDisplayName, email: selectedEmail, roles, state, designation: selectedDesignation, departmentId: selectedDepartmentId, reason }}
             disabled={action.isPending}
             description="Loads access changes for this selected account only. Review the roles and reason before saving."
             onImport={(record) => {
+              if ('displayName' in record) setSelectedDisplayName(String(record.displayName ?? ''));
+              if ('email' in record) setSelectedEmail(String(record.email ?? ''));
               if (Array.isArray(record.roles)) setRoles(record.roles as Role[]);
               if ('state' in record) setState(String(record.state));
               if ('designation' in record) setSelectedDesignation(String(record.designation ?? ''));
@@ -307,6 +335,12 @@ export function UserAdmin() {
             }}
           />
           <form className="form-stack" onSubmit={edit}>
+            <Field label="Employee name" htmlFor="staff-display-name">
+              <input id="staff-display-name" value={selectedDisplayName} onChange={(event) => setSelectedDisplayName(event.target.value)} required maxLength={120} />
+            </Field>
+            <Field label="Work email" htmlFor="staff-email" hint={selected.pendingEmail ? `Pending confirmation: ${selected.pendingEmail}` : 'Changing an active user email sends a verification link to the new address.'}>
+              <input id="staff-email" type="email" value={selectedEmail} onChange={(event) => setSelectedEmail(event.target.value)} required maxLength={254} />
+            </Field>
             <fieldset>
               <legend>Roles</legend>
               {(['EMPLOYEE', 'IT_ADMIN', 'ADMIN'] as Role[]).map((role) => (
@@ -375,6 +409,14 @@ export function UserAdmin() {
                 disabled={action.isPending || !roles.length || !reason.trim()}
               >
                 Save account access
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={action.isPending || !reason.trim()}
+                onClick={() => void sendPasswordReset()}
+              >
+                Send password reset link
               </button>
               <button
                 className="button secondary"

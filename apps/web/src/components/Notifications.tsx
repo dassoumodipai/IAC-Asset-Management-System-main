@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
@@ -45,6 +46,8 @@ export function useUnreadNotificationCount() {
 export function NotificationsPage() {
   const inbox = useNotificationInbox();
   const action = useAction<{ read: boolean }>();
+  const [filter, setFilter] = useState<'ALL' | 'UNREAD'>('ALL');
+  const visibleItems = inbox.data?.items.filter((item) => filter === 'ALL' || !item.read) ?? [];
 
   return (
     <>
@@ -91,7 +94,28 @@ export function NotificationsPage() {
               {inbox.data.total} {inbox.data.total === 1 ? 'notice' : 'notices'}
             </span>
           </div>
-          {inbox.data.items.map((item) => (
+          <div className="notification-filters" role="group" aria-label="Filter notifications">
+            <button
+              type="button"
+              className={`notification-filter${filter === 'ALL' ? ' is-selected' : ''}`}
+              aria-pressed={filter === 'ALL'}
+              onClick={() => setFilter('ALL')}
+            >
+              All <span>{inbox.data.total}</span>
+            </button>
+            <button
+              type="button"
+              className={`notification-filter${filter === 'UNREAD' ? ' is-selected' : ''}`}
+              aria-pressed={filter === 'UNREAD'}
+              onClick={() => setFilter('UNREAD')}
+            >
+              Unread <span>{inbox.data.unreadCount}</span>
+            </button>
+          </div>
+          {visibleItems.length === 0 ? (
+            <p className="notification-filter-empty">You have no unread notices.</p>
+          ) : null}
+          {visibleItems.map((item) => (
             <article
               id={`notice-${item.id}`}
               key={item.id}
@@ -156,24 +180,20 @@ export function NotificationsPage() {
                       Mark as read
                     </button>
                   ) : null}
-                  <Link
-                    className="button secondary small"
-                    to={
-                      item.path === '/notifications'
-                        ? `/notifications#notice-${item.id}`
-                        : item.path
-                    }
-                    aria-label={
-                      item.path === '/notifications' ? `View ${item.title}` : `Open ${item.title}`
-                    }
-                  >
-                    {item.path === '/notifications' ? 'View notice' : 'Open'}
-                  </Link>
+                  {item.path !== '/notifications' ? (
+                    <Link
+                      className="button secondary small"
+                      to={item.path}
+                      aria-label={`Open ${item.title}`}
+                    >
+                      Open
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             </article>
           ))}
-          {inbox.data.total > inbox.data.items.length ? (
+          {filter === 'ALL' && inbox.data.total > inbox.data.items.length ? (
             <p className="muted">Showing the latest {inbox.data.items.length} announcements.</p>
           ) : null}
         </section>

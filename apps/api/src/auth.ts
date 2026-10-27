@@ -149,12 +149,35 @@ export class AuthService {
       client,
     );
   }
+  async issueEmailChange(client: PoolClient, user: { id: string }, targetEmail: string) {
+    const raw = token();
+    await this.db.query(
+      "UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose='EMAIL_CHANGE' AND consumed_at IS NULL",
+      [user.id],
+      client,
+    );
+    const [record] = await this.db.query(
+      `INSERT INTO auth_tokens(user_id,purpose,token_hash,expires_at) VALUES($1,'EMAIL_CHANGE',$2,now()+interval '60 minutes') RETURNING id`,
+      [user.id, hash(raw)],
+      client,
+    );
+    await this.db.notify(client, `auth:${record.id}`, 'EMAIL_CHANGE', [targetEmail], {
+      subject: 'Confirm your IAC portal email change',
+      text: `Confirm this email address for your IAC portal account: ${configuration().origin}/verify-email#token=${raw}\nThis link expires in 60 minutes. If you did not request this change, disregard this email.`,
+    });
+    await this.db.query(
+      `UPDATE notification_outbox SET expires_at=now()+interval '60 minutes' WHERE event_key=$1`,
+      [`auth:${record.id}`],
+      client,
+    );
+  }
   async register(req: Request, body: unknown) {
     const data = z.object({ email, password, displayName: name }).strict().parse(body);
     await this.ipLimit(req);
     await this.throttle(req, `register:${data.email}`, 5);
     const hashed = await passwordHash(data.password);
     await this.db.tx(async (client) => {
+      await this.db.query('SELECT pg_advisory_xact_lock(715023)', [], client);
       if (
         !(
           await this.db.query(
@@ -164,6 +187,8 @@ export class AuthService {
           )
         )[0]
       )
+        return;
+      if ((await this.db.query('SELECT id FROM users WHERE pending_email=$1', [data.email], client))[0])
         return;
       const [user] = await this.db.query(
         `INSERT INTO users(email,display_name,password_hash) VALUES($1,$2,$3) ON CONFLICT(email) DO NOTHING RETURNING id,email`,
@@ -185,24 +210,49 @@ export class AuthService {
     const data = tokenInput.parse(body);
     await this.ipLimit(req);
     await this.db.tx(async (client) => {
+      await this.db.query('SELECT pg_advisory_xact_lock(715023)', [], client);
       const [record] = await this.db.query(
-        `SELECT * FROM auth_tokens WHERE token_hash=$1 AND purpose='VERIFY_EMAIL' AND consumed_at IS NULL AND expires_at>now() FOR UPDATE`,
+        `SELECT * FROM auth_tokens WHERE token_hash=$1 AND purpose IN ('VERIFY_EMAIL','EMAIL_CHANGE') AND consumed_at IS NULL AND expires_at>now() FOR UPDATE`,
         [hash(data.token)],
         client,
       );
       if (!record) throw new UnauthorizedException('This link is invalid or expired');
-      const [user] = await this.db.query(
-        `UPDATE users SET email_verified_at=coalesce(email_verified_at,now()),state='ACTIVE',updated_at=now(),version=version+1 WHERE id=$1 AND state<>'DISABLED' RETURNING id`,
-        [record.user_id],
-        client,
-      );
+      const [before] = record.purpose === 'EMAIL_CHANGE'
+        ? await this.db.query('SELECT email FROM users WHERE id=$1', [record.user_id], client)
+        : [];
+      const [user] = record.purpose === 'EMAIL_CHANGE'
+        ? await this.db.query(
+            `UPDATE users SET email=pending_email,pending_email=NULL,email_verified_at=coalesce(email_verified_at,now()),updated_at=now(),version=version+1 WHERE id=$1 AND pending_email IS NOT NULL AND state<>'INVITED' RETURNING id,email`,
+            [record.user_id],
+            client,
+          )
+        : await this.db.query(
+            `UPDATE users SET email_verified_at=coalesce(email_verified_at,now()),state='ACTIVE',updated_at=now(),version=version+1 WHERE id=$1 AND state<>'DISABLED' RETURNING id,email`,
+            [record.user_id],
+            client,
+          );
       if (!user) throw new UnauthorizedException('This link is invalid or expired');
       await this.db.query(
-        'UPDATE auth_tokens SET consumed_at=now() WHERE id=$1',
-        [record.id],
+        record.purpose === 'EMAIL_CHANGE'
+          ? 'UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1 AND consumed_at IS NULL'
+          : 'UPDATE auth_tokens SET consumed_at=now() WHERE id=$1',
+        [record.purpose === 'EMAIL_CHANGE' ? record.user_id : record.id],
         client,
       );
-      await this.db.audit(client, null, 'USER', record.user_id, 'EMAIL_VERIFIED');
+      if (record.purpose === 'EMAIL_CHANGE') {
+        await this.db.query(
+          'UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',
+          [record.user_id],
+          client,
+        );
+        await this.db.notify(client, `email-change-notice:${record.user_id}:${record.id}`, 'EMAIL_CHANGED', [before.email], {
+          subject: 'Your IAC portal email was changed',
+          text: `The email address for your IAC portal account was changed to ${user.email}. If you did not approve this change, contact your IAC administrator.`,
+        });
+        await this.db.audit(client, null, 'USER', record.user_id, 'EMAIL_CHANGE_CONFIRMED');
+      } else {
+        await this.db.audit(client, null, 'USER', record.user_id, 'EMAIL_VERIFIED');
+      }
     });
     return { message: 'Email verified. You can now sign in.' };
   }
@@ -378,6 +428,71 @@ export class AuthService {
   }
   async current(req: Request) {
     return publicUser(await resolveSession(this.db, req));
+  }
+  async updateProfile(req: AuthRequest, body: unknown) {
+    const data = z.object({
+      displayName: name.optional(),
+      designation,
+      newEmail: email.optional(),
+      newPassword: password.optional(),
+      currentPassword: z.string().min(1).max(128).optional(),
+    }).strict().refine(
+      (value) => value.displayName !== undefined || value.designation !== undefined || value.newEmail !== undefined || value.newPassword !== undefined,
+      'No changes supplied',
+    ).refine(
+      (value) => value.newEmail === undefined && value.newPassword === undefined || !!value.currentPassword,
+      'Enter your current password to change your email or password',
+    ).parse(body);
+    if (data.newEmail !== undefined) await this.throttle(req, `profile-email:${req.user.id}`, 3);
+    return this.db.tx(async (client) => {
+      await this.db.query('SELECT pg_advisory_xact_lock(715023)', [], client);
+      const [user] = await this.db.query('SELECT * FROM users WHERE id=$1 FOR UPDATE', [req.user.id], client);
+      if (!user || user.state !== 'ACTIVE') throw new UnauthorizedException('Sign in required');
+      assertVersion(req, user.version);
+      if (data.newEmail !== undefined || data.newPassword !== undefined) {
+        if (!user.password_hash || !(await argon2.verify(user.password_hash, data.currentPassword!)))
+          throw new UnauthorizedException('Current password is incorrect');
+      }
+      if (data.newEmail !== undefined) {
+        if (data.newEmail === user.email) {
+          await this.db.query('UPDATE users SET pending_email=NULL WHERE id=$1', [user.id], client);
+          await this.db.query("UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose='EMAIL_CHANGE' AND consumed_at IS NULL", [user.id], client);
+        } else {
+          const [approved] = await this.db.query('SELECT email FROM approved_emails WHERE email=$1', [data.newEmail], client);
+          if (!approved) throw new ForbiddenException('Ask an administrator to approve this work email first');
+          const [taken] = await this.db.query('SELECT id FROM users WHERE (email=$1 OR pending_email=$1) AND id<>$2', [data.newEmail, user.id], client);
+          if (taken) throw new HttpException('That email address is already linked to an account', 409);
+          await this.db.query('UPDATE users SET pending_email=$2 WHERE id=$1', [user.id, data.newEmail], client);
+          await this.issueEmailChange(client, user, data.newEmail);
+        }
+      }
+      await this.db.query(
+        'UPDATE users SET display_name=$2,designation=$3,password_hash=coalesce($4,password_hash),version=version+1,updated_at=now() WHERE id=$1',
+        [user.id, data.displayName ?? user.display_name, data.designation === undefined ? user.designation : data.designation,
+          data.newPassword ? await passwordHash(data.newPassword) : null],
+        client,
+      );
+      if (data.newPassword) {
+        await this.db.query(
+          "UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose IN ('RESET_PASSWORD','INVITE') AND consumed_at IS NULL",
+          [user.id],
+          client,
+        );
+        await this.db.query(
+          'UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND id_hash<>$2 AND revoked_at IS NULL',
+          [user.id, req.user.sessionHash],
+          client,
+        );
+      }
+      await this.db.audit(client, req.user, 'USER', user.id, 'SELF_PROFILE_UPDATED', {
+        displayNameChanged: data.displayName !== undefined && data.displayName !== user.display_name,
+        designationChanged: data.designation !== undefined && data.designation !== user.designation,
+        emailChangeRequested: data.newEmail !== undefined && data.newEmail !== user.email,
+        emailChangeCancelled: data.newEmail === user.email && !!user.pending_email,
+        passwordChanged: data.newPassword !== undefined,
+      });
+      return { message: data.newEmail === user.email ? 'Profile saved. Pending email change cancelled.' : data.newEmail ? 'Profile saved. Confirm the new email using the link we sent.' : data.newPassword ? 'Password changed. Other active sessions were signed out.' : 'Profile saved.' };
+    });
   }
   async portal(req: Request, body: unknown) {
     const data = z
@@ -576,7 +691,7 @@ export class AuthService {
     values.push(input.limit + 1);
     const rows = await this.db.query(
       `SELECT u.id,u.email,u.display_name AS "displayName",u.employee_reference AS "employeeReference",
-              u.designation,u.department_id AS "departmentId",d.name AS department,u.state,u.version,
+              u.designation,u.department_id AS "departmentId",d.name AS department,u.pending_email AS "pendingEmail",u.state,u.version,
               u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",
               u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",
               coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles
@@ -618,11 +733,14 @@ export class AuthService {
       .strict()
       .parse(body);
     return this.db.tx(async (client) => {
+      await this.db.query('SELECT pg_advisory_xact_lock(715023)', [], client);
       if (
         data.departmentId &&
         !(await this.db.query('SELECT id FROM departments WHERE id=$1', [data.departmentId], client))[0]
       )
         throw new HttpException('Department not found', 404);
+      if ((await this.db.query('SELECT id FROM users WHERE pending_email=$1', [data.email], client))[0])
+        throw new HttpException('This email is awaiting confirmation for another account', 409);
       await this.db.query(
         'INSERT INTO approved_emails(email,approved_by) VALUES($1,$2) ON CONFLICT DO NOTHING',
         [data.email, req.user.id],
@@ -661,6 +779,8 @@ export class AuthService {
     const data = z
       .object({
         state: z.enum(['ACTIVE', 'DISABLED']).optional(),
+        displayName: name.optional(),
+        email: email.optional(),
         designation,
         departmentId,
         roles: z
@@ -676,10 +796,14 @@ export class AuthService {
           d.state !== undefined ||
           d.roles !== undefined ||
           d.designation !== undefined ||
-          d.departmentId !== undefined,
+          d.departmentId !== undefined ||
+          d.displayName !== undefined ||
+          d.email !== undefined,
         'No changes supplied',
       )
+      .refine((d) => !!d.reason, 'A reason is required for admin account edits')
       .parse(body);
+    let changedEmail = false;
     await this.db.tx(async (client) => {
       await this.db.query(`SELECT pg_advisory_xact_lock(715023)`, [], client);
       const [user] = await this.db.query(
@@ -689,6 +813,20 @@ export class AuthService {
       );
       if (!user) throw new HttpException('User not found', 404);
       assertVersion(req, user.version);
+      if (data.email && data.email !== user.email) {
+        changedEmail = true;
+        const [taken] = await this.db.query(
+          'SELECT id FROM users WHERE (email=$1 OR pending_email=$1) AND id<>$2',
+          [data.email, id],
+          client,
+        );
+        if (taken) throw new HttpException('That email address is already linked to an account', 409);
+        await this.db.query(
+          'INSERT INTO approved_emails(email,approved_by) VALUES($1,$2) ON CONFLICT DO NOTHING',
+          [data.email, req.user.id],
+          client,
+        );
+      }
       if (data.state === 'ACTIVE' && (!user.password_hash || !user.email_verified_at))
         throw new HttpException('User must complete email verification or invitation first', 409);
       if (
@@ -715,8 +853,14 @@ export class AuthService {
           throw new HttpException('The final active Admin cannot be removed or disabled', 409);
       }
       await this.db.query(
-        'UPDATE users SET state=$2,designation=$3,department_id=$4,version=version+1,updated_at=now() WHERE id=$1',
-        [id, newState, data.designation === undefined ? user.designation : data.designation, data.departmentId === undefined ? user.department_id : data.departmentId],
+        `UPDATE users SET state=$2,display_name=$3,designation=$4,department_id=$5,
+           email=CASE WHEN $6::boolean AND state='INVITED' THEN $7 ELSE email END,
+           pending_email=CASE WHEN $6::boolean AND state<>'INVITED' THEN $7 WHEN $6::boolean THEN NULL ELSE pending_email END,
+           version=version+1,updated_at=now() WHERE id=$1`,
+        [id, newState, data.displayName ?? user.display_name,
+          data.designation === undefined ? user.designation : data.designation,
+          data.departmentId === undefined ? user.department_id : data.departmentId,
+          !!data.email && data.email !== user.email, data.email ?? user.email],
         client,
       );
       if (data.roles) {
@@ -741,20 +885,51 @@ export class AuthService {
           client,
         );
       }
+      if (data.email && data.email !== user.email) {
+        if (user.state === 'INVITED') {
+          await this.db.query(
+            "UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose='EMAIL_CHANGE' AND consumed_at IS NULL",
+            [id],
+            client,
+          );
+          await this.issue(client, { id, email: data.email }, 'INVITE');
+        } else {
+          await this.issueEmailChange(client, { id }, data.email);
+        }
+      }
       await this.db.audit(client, req.user, 'USER', id, accessChanged ? 'ACCESS_CHANGED' : 'STAFF_PROFILE_UPDATED', {
         state: newState,
         roles: newRoles,
+        displayName: data.displayName === undefined ? user.display_name : data.displayName,
+        emailChangeRequested: !!data.email && data.email !== user.email,
         designation: data.designation === undefined ? user.designation : data.designation,
         departmentId: data.departmentId === undefined ? user.department_id : data.departmentId,
         reason: data.reason || null,
       });
     });
     return {
-      message:
-        data.state !== undefined || data.roles !== undefined
-          ? 'Account updated; existing sessions revoked.'
-          : 'Employee details updated.',
+      message: [
+        'Account updated.',
+        data.state !== undefined || data.roles !== undefined ? 'Existing sessions were revoked.' : '',
+        changedEmail ? 'A confirmation link was sent to the new email; it takes effect after confirmation.' : '',
+      ].filter(Boolean).join(' '),
     };
+  }
+  async adminPasswordReset(req: AuthRequest, id: string, body: unknown) {
+    requireRole(req, 'ADMIN');
+    z.string().uuid().parse(id);
+    const data = z.object({ reason: z.string().trim().min(1).max(5000) }).strict().parse(body);
+    await this.throttle(req, `admin-password-reset:${id}`, 3);
+    await this.db.tx(async (client) => {
+      const [user] = await this.db.query(
+        "SELECT id,email FROM users WHERE id=$1 AND state='ACTIVE' AND email_verified_at IS NOT NULL FOR UPDATE",
+        [id], client,
+      );
+      if (!user) throw new HttpException('Only active, verified accounts can receive a password reset link', 409);
+      await this.issue(client, user, 'RESET_PASSWORD');
+      await this.db.audit(client, req.user, 'USER', id, 'ADMIN_PASSWORD_RESET_REQUESTED', { reason: data.reason });
+    });
+    return { message: 'Password reset instructions were sent to the user’s current email address.' };
   }
 }
 @Controller()
@@ -834,6 +1009,12 @@ export class AuthController {
   @Get('me') me(@Req() req: Request) {
     return this.auth.current(req);
   }
+  @Patch('me/profile') @UseGuards(SessionGuard) profile(
+    @Req() req: AuthRequest,
+    @Body() body: unknown,
+  ) {
+    return this.auth.updateProfile(req, body);
+  }
   @Get('auth/me') async authMe(@Req() req: Request) {
     const user = await this.auth.current(req);
     return { user, mfaEnrollmentRequired: user.mfaEnrollmentRequired };
@@ -885,5 +1066,12 @@ export class AuthController {
     @Body() body: unknown,
   ) {
     return this.auth.editUser(req, id, body);
+  }
+  @Post('users/:id/password-reset') @UseGuards(SessionGuard) passwordReset(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.auth.adminPasswordReset(req, id, body);
   }
 }

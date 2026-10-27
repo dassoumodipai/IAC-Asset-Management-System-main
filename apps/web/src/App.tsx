@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, resetCsrf } from './api';
@@ -14,12 +14,13 @@ import { ScanButton } from './components/Scanner';
 import { TicketForm, TicketList, TicketDetail } from './components/Tickets';
 import { UserDashboard } from './components/Dashboards';
 import { UserAdmin, AuditView, ImportsView } from './components/Admin';
-import { Empty, ErrorNotice, Loading } from './components/ui';
+import { Empty, ErrorNotice, Field, Loading } from './components/ui';
 import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { MasterControl } from './components/MasterControl';
 import { PushAnnouncements } from './components/PushAnnouncements';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
+import { useAction } from './hooks';
 function Guard({ admin = false, staffOnly = false }: { admin?: boolean; staffOnly?: boolean }) {
   const { user, loading, error } = useSession();
   const location = useLocation();
@@ -344,16 +345,94 @@ function Shell() {
 }
 function Profile() {
   const { user } = useSession();
+  const profileAction = useAction<{ message: string }>();
+  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
+  const [designation, setDesignation] = useState(user?.designation ?? '');
+  const [newEmail, setNewEmail] = useState(user?.email ?? '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saved, setSaved] = useState('');
+  const [cancelPendingEmail, setCancelPendingEmail] = useState(false);
   const action = async () => {
     await api('/auth/logout-all', { method: 'POST', body: {} });
     window.location.assign('/login');
   };
   const [error, setError] = useState<unknown>();
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    setSaved('');
+    if (newPassword && newPassword !== confirmPassword) {
+      setError(new Error('The new passwords do not match.'));
+      return;
+    }
+    const emailChanged = newEmail.trim().toLowerCase() !== user?.email;
+    const passwordChanged = newPassword.length > 0;
+    const result = await profileAction.mutateAsync({
+      path: '/me/profile',
+      method: 'PATCH',
+      version: user?.version,
+      body: {
+        displayName: displayName.trim(),
+        designation: designation.trim() || null,
+        ...(emailChanged || cancelPendingEmail ? { newEmail } : {}),
+        ...(passwordChanged ? { newPassword } : {}),
+        ...(emailChanged || cancelPendingEmail || passwordChanged ? { currentPassword } : {}),
+      },
+    }).catch(() => undefined);
+    if (result) {
+      setSaved(result.message);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setCancelPendingEmail(false);
+      setError(undefined);
+    }
+  }
   return (
     <section className="panel profile-panel">
-      <h1>{user?.displayName}</h1>
-      <p>{user?.email}</p>
-      <p className="muted">Roles: {user?.roles.join(', ')}</p>
+      <h1>Account details</h1>
+      <p className="muted">Update your profile. Role and department changes are managed by an administrator.</p>
+      <ErrorNotice error={profileAction.error} />
+      {saved ? <p className="notice success" role="status">{saved}</p> : null}
+      <form className="form-stack" onSubmit={(event) => void saveProfile(event)}>
+        <Field label="Name" htmlFor="profile-name">
+          <input id="profile-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={120} />
+        </Field>
+        <Field label="Work email" htmlFor="profile-email" hint={user?.pendingEmail ? `Pending confirmation: ${user.pendingEmail}` : 'Changing your email requires your current password and email confirmation. Only addresses approved by an administrator can be used.'}>
+          <input id="profile-email" type="email" value={newEmail} onChange={(event) => { setNewEmail(event.target.value); setCancelPendingEmail(false); }} required maxLength={254} />
+        </Field>
+        {user?.pendingEmail && !cancelPendingEmail ? (
+          <button className="button secondary" type="button" onClick={() => { setNewEmail(user.email); setCancelPendingEmail(true); }}>
+            Cancel pending email change
+          </button>
+        ) : null}
+        {newEmail.trim().toLowerCase() !== user?.email || cancelPendingEmail || newPassword.length > 0 ? (
+          <Field label="Current password" htmlFor="profile-current-password">
+            <input id="profile-current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" />
+          </Field>
+        ) : null}
+        <Field label="New password" htmlFor="profile-new-password" hint="Leave blank to keep your current password. Use at least 12 characters.">
+          <input id="profile-new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={12} autoComplete="new-password" />
+        </Field>
+        {newPassword ? (
+          <Field label="Confirm new password" htmlFor="profile-confirm-password">
+            <input id="profile-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={12} autoComplete="new-password" />
+          </Field>
+        ) : null}
+        <Field label="Designation" htmlFor="profile-designation">
+          <input id="profile-designation" value={designation} onChange={(event) => setDesignation(event.target.value)} maxLength={120} />
+        </Field>
+        <Field label="Department" htmlFor="profile-department">
+          <input id="profile-department" value={user?.department ?? 'Not set'} readOnly />
+        </Field>
+        <Field label="Access roles" htmlFor="profile-roles">
+          <input id="profile-roles" value={user?.roles.join(', ') ?? ''} readOnly />
+        </Field>
+        <button className="button" disabled={profileAction.isPending}>
+          {profileAction.isPending ? 'Saving…' : 'Save account details'}
+        </button>
+      </form>
       <p>
         Portal notice: {user?.portalNoticeVersion ?? '1'} ·{' '}
         {user?.portalAcceptedAt ? 'Accepted' : 'Pending'}

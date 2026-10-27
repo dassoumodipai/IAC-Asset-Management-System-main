@@ -234,7 +234,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
         {query.isPending ? (
           <Loading label="Loading assets..." />
         ) : items.length ? (
-          <div className="table-scroll">
+          <div className="table-scroll asset-catalog-table">
             <table>
               <thead>
                 <tr>
@@ -252,18 +252,22 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               <tbody>
                 {items.map((asset) => (
                   <tr key={asset.id}>
-                    <td>
+                    <td data-label="Asset / description">
                       <Link className="asset-code" to={`/assets/${asset.id}`}>
                         {asset.assetCode}
                       </Link>
                       <span className="cell-description">{asset.description}</span>
                     </td>
-                    <td>{referenceLabel(refs.data, 'CATEGORY', asset.category)}</td>
-                    <td>
+                    <td data-label="Category">
+                      {referenceLabel(refs.data, 'CATEGORY', asset.category)}
+                    </td>
+                    <td data-label="Status">
                       <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />
                     </td>
-                    <td>{referenceLabel(refs.data, 'CONDITION', asset.condition)}</td>
-                    <td>
+                    <td data-label="Condition">
+                      {referenceLabel(refs.data, 'CONDITION', asset.condition)}
+                    </td>
+                    <td data-label="Verification">
                       {asset.currentAssignment ? (
                         <Badge value={asset.currentAssignment.acknowledgement} />
                       ) : (
@@ -271,7 +275,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                       )}
                     </td>
                     {manage ? (
-                      <td>
+                      <td data-label="Last label printed">
                         {asset.lastLabelPrintedAt ? (
                           <span>{displayDate(asset.lastLabelPrintedAt, true)}</span>
                         ) : (
@@ -279,7 +283,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                         )}
                       </td>
                     ) : null}
-                    <td>
+                    <td data-label="Actions">
                       <div className="actions">
                         {manage && canAssign(asset) ? (
                           <Link
@@ -606,7 +610,9 @@ export function AssetDetail() {
                 {manage ? (
                   <div className="custody-person">
                     <strong>{assignment.employeeName || 'Employee name not recorded'}</strong>
-                    {assignment.employeeDesignation ? <span>{assignment.employeeDesignation}</span> : null}
+                    {assignment.employeeDesignation ? (
+                      <span>{assignment.employeeDesignation}</span>
+                    ) : null}
                     {assignment.employeeDepartment ? (
                       <span className="muted">{assignment.employeeDepartment}</span>
                     ) : null}

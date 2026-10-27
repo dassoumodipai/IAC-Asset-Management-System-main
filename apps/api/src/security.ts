@@ -15,6 +15,10 @@ export interface Actor {
   id: string;
   email: string;
   displayName: string;
+  designation?: string | null;
+  departmentId?: string | null;
+  department?: string | null;
+  pendingEmail?: string | null;
   roles: string[];
   state: string;
   version: number;
@@ -46,7 +50,7 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
   if (typeof id !== 'string' || id.length > 128)
     throw new UnauthorizedException('Sign in required');
   const [row] = await db.query(
-    `SELECT u.*,s.scope,s.mfa_verified_at,s.id_hash,coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE s.id_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-interval '30 minutes' AND u.state='ACTIVE' GROUP BY u.id,s.id_hash`,
+    `SELECT u.*,d.name AS department,s.scope,s.mfa_verified_at,s.id_hash,coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN departments d ON d.id=u.department_id LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE s.id_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-interval '30 minutes' AND u.state='ACTIVE' GROUP BY u.id,d.name,s.id_hash`,
     [hash(id)],
   );
   if (!row || !row.email_verified_at) throw new UnauthorizedException('Sign in required');
@@ -59,6 +63,10 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
     id: row.id,
     email: row.email,
     displayName: row.display_name,
+    designation: row.designation,
+    departmentId: row.department_id,
+    department: row.department,
+    pendingEmail: row.pending_email,
     roles: row.roles,
     state: row.state,
     version: row.version,
@@ -120,6 +128,10 @@ export const publicUser = (user: Actor) => ({
   id: user.id,
   email: user.email,
   displayName: user.displayName,
+  designation: user.designation ?? null,
+  departmentId: user.departmentId ?? null,
+  department: user.department ?? null,
+  pendingEmail: user.pendingEmail ?? null,
   roles: user.roles,
   state: user.state,
   version: user.version,

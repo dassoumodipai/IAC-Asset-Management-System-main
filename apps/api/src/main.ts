@@ -140,6 +140,16 @@ export async function createApp(): Promise<INestApplication> {
       ? json({ limit: '1536kb' })(req, res, next)
       : next(),
   );
+  app.use('/api/v1/transfers', (req: Request, res: Response, next: () => void) =>
+    req.method === 'POST' &&
+    req.path === '/preview' &&
+    isAllowedAppOrigin(req.headers.origin || '') &&
+    (req.headers.cookie || '')
+      .split(';')
+      .some((c) => c.trim().startsWith(`${configuration().sessionCookie}=`))
+      ? json({ limit: '6mb' })(req, res, next)
+      : next(),
+  );
   app.use('/api/v1/push', (req: Request, res: Response, next: () => void) =>
     req.method === 'POST' &&
     req.path === '/broadcast' &&
