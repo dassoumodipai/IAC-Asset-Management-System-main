@@ -168,7 +168,7 @@ const inputSchema = z
     rows: z
       .array(z.record(z.string().min(1).max(100), z.string().max(5000)))
       .min(1)
-      .max(50),
+      .max(500),
   })
   .strict();
 
