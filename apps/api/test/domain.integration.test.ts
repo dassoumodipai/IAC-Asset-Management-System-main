@@ -227,7 +227,7 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     const current = await service.asset(request(employee), asset.id);
     assert.equal(current.status, 'Assigned');
   });
-  it('creates scoped tickets and atomically queues verified staff/reporter deliveries', async () => {
+  it('creates scoped tickets and queues new-ticket emails only to verified Admin recipients', async () => {
     await service.updateGroup(request(admin), 'ADMIN', {
       enabled: true,
       recipients: [admin.email],
@@ -247,10 +247,7 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
       'SELECT d.recipient FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
       [`ticket:${ticket.id}:created`],
     );
-    assert.deepEqual(
-      notifications.map((r) => r.recipient).sort(),
-      [employee.email, admin.email, itAdmin.email].sort(),
-    );
+    assert.deepEqual(notifications.map((r) => r.recipient).sort(), [admin.email]);
     const reported = await service.createTicket(request(other), {
       assetId: asset.id,
       subject: 'Non-holder report',

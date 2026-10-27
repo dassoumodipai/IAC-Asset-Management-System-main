@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 import { Db } from './db';
-import { configuration, equal, hash, validCsrf } from './config';
+import { configuration, equal, hash, isAllowedAppOrigin, validCsrf } from './config';
 export interface Actor {
   requestId?: string;
   id: string;
@@ -92,7 +92,7 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     next();
     return;
   }
-  if (!configuration().origins.includes(req.get('Origin') || '')) {
+  if (!isAllowedAppOrigin(req.get('Origin') || '')) {
     res.status(403).json({
       error: {
         code: 'ORIGIN_INVALID',

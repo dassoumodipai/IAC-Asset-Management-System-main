@@ -787,8 +787,128 @@ td:first-child {
 .install-guide-card {
   align-self: start;
 }
-.push-announcement-form {
-  max-width: 720px;
+.announcement-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.8fr);
+  gap: 28px;
+  align-items: start;
+  max-width: 1240px;
+}
+.announcement-compose {
+  min-width: 0;
+}
+.announcement-form {
+  max-width: none;
+}
+.announcement-push-status {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.announcement-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.announcement-file-input {
+  padding: 10px;
+}
+.announcement-file-selected,
+.announcement-file-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  overflow-wrap: anywhere;
+}
+.announcement-file-selected {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.announcement-file-selected small {
+  margin-left: 8px;
+  color: var(--muted);
+}
+.announcement-file-error {
+  color: #a13730;
+}
+.announcement-publish {
+  width: fit-content;
+  min-width: 190px;
+}
+.announcement-preview-column {
+  min-width: 0;
+  padding-top: 8px;
+}
+.announcement-preview-label {
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.announcement-preview {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+.announcement-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.announcement-preview h2 {
+  margin: 22px 0 10px;
+  font-size: 20px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.announcement-preview p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.announcement-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.announcement-preview-file {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.announcement-preview-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+@media (max-width: 900px) {
+  .announcement-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .announcement-preview-column {
+    padding-top: 0;
+  }
+}
+@media (max-width: 600px) {
+  .announcement-scope-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .announcement-publish {
+    width: 100%;
+  }
+  .announcement-preview {
+    padding: 17px;
+  }
 }
 .loading {
   min-height: 52px;
@@ -837,7 +957,9 @@ td:first-child {
   background: #edf4f8;
 }
 @keyframes logo-loading-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .insight-skeleton-line,
 .insight-skeleton-bar {
@@ -3779,5 +3901,173 @@ input[type='checkbox']:focus-visible {
   .button.small {
     min-height: 44px;
     padding: 10px 16px;
+  }
+}
+
+.notification-nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21px;
+  height: 21px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dcecf7;
+  color: #183b58;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.notification-inbox {
+  max-width: 1040px;
+}
+.notification-inbox-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 22px 0 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.notification-inbox-heading .eyebrow {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+.notification-summary {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+.notification-card {
+  padding: 22px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 24px;
+}
+.notification-card:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 4px;
+}
+.notification-card.is-unread {
+  border-left: 0;
+  background: transparent;
+}
+.notification-card-heading,
+.notification-card-footer,
+.notification-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.notification-card-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.notification-status {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+}
+.notification-card.is-unread .notification-status {
+  background: var(--navy);
+}
+.notification-audience {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.notification-unread-badge {
+  margin: 0;
+  text-transform: none;
+}
+.notification-message {
+  margin: 12px 0 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notification-attachment-image {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(100%, 480px);
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.notification-attachment-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  object-fit: contain;
+}
+.notification-attachment-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow-wrap: anywhere;
+}
+.notification-attachment-file > span:first-child {
+  padding: 5px 6px;
+  border-radius: 4px;
+  background: #edf1f4;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+}
+.notification-card-footer {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  justify-content: flex-start;
+  gap: 18px;
+}
+.notification-card-footer time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.notification-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 650px) {
+  .notification-inbox-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .notification-card {
+    padding: 18px 0;
+  }
+  .notification-card-heading {
+    flex-wrap: wrap;
+  }
+  .notification-audience {
+    width: 100%;
+    margin-left: 20px;
+  }
+  .notification-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .notification-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }

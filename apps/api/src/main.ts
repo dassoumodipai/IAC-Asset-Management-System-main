@@ -13,7 +13,7 @@ import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import { ZodError } from 'zod';
 import { AppModule } from './app.module';
-import { configuration, encryptionKey, requestContext } from './config';
+import { configuration, encryptionKey, isAllowedAppOrigin, requestContext } from './config';
 import { csrfProtection } from './security';
 @Catch()
 class ApiExceptionFilter implements ExceptionFilter {
@@ -79,9 +79,19 @@ class ApiExceptionFilter implements ExceptionFilter {
       status = 422;
       code = 'VALIDATION_FAILED';
       message = 'One or more values are invalid';
+    } else if (['42P01', '42703', '42883'].includes((error as any)?.code)) {
+      status = 503;
+      code = 'DATABASE_SCHEMA_OUT_OF_DATE';
+      message =
+        'The server database is missing an update. Deploy the latest version and apply database migrations.';
     }
-    if (status >= 500)
-      process.stderr.write(`Request failed (${res.getHeader('X-Request-Id') || 'unknown'})\n`);
+    if (status >= 500) {
+      const errorCode = (error as any)?.code;
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      process.stderr.write(
+        `Request failed (${res.getHeader('X-Request-Id') || 'unknown'}) [${errorName}${errorCode ? ` ${String(errorCode).slice(0, 32)}` : ''}]\n`,
+      );
+    }
     res.status(status).json({
       error: {
         code,
@@ -108,7 +118,13 @@ export async function createApp(): Promise<INestApplication> {
   });
   app.use(helmet());
   app.enableCors({
-    origin: configuration().origins,
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin) return callback(null, false);
+      callback(null, isAllowedAppOrigin(origin));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'If-Match', 'Idempotency-Key'],
@@ -117,11 +133,21 @@ export async function createApp(): Promise<INestApplication> {
   app.use('/api/v1/tickets', (req: Request, res: Response, next: () => void) =>
     req.method === 'POST' &&
     req.path === '/' &&
-    configuration().origins.includes(req.headers.origin || '') &&
+    isAllowedAppOrigin(req.headers.origin || '') &&
     (req.headers.cookie || '')
       .split(';')
       .some((c) => c.trim().startsWith(`${configuration().sessionCookie}=`))
       ? json({ limit: '1536kb' })(req, res, next)
+      : next(),
+  );
+  app.use('/api/v1/push', (req: Request, res: Response, next: () => void) =>
+    req.method === 'POST' &&
+    req.path === '/broadcast' &&
+    isAllowedAppOrigin(req.headers.origin || '') &&
+    (req.headers.cookie || '')
+      .split(';')
+      .some((c) => c.trim().startsWith(`${configuration().sessionCookie}=`))
+      ? json({ limit: '6mb' })(req, res, next)
       : next(),
   );
   app.use(json({ limit: '64kb' }));

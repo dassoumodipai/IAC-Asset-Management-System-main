@@ -13,12 +13,13 @@ import { InstallAppPage, InstallMenuItem, OfflineScreen } from './components/Pwa
 import { ScanButton } from './components/Scanner';
 import { TicketForm, TicketList, TicketDetail } from './components/Tickets';
 import { UserDashboard } from './components/Dashboards';
-import { UserAdmin, AuditView, ImportsView, NotificationSettings } from './components/Admin';
+import { UserAdmin, AuditView, ImportsView } from './components/Admin';
 import { Empty, ErrorNotice, Loading } from './components/ui';
 import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { MasterControl } from './components/MasterControl';
 import { PushAnnouncements } from './components/PushAnnouncements';
+import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
 function Guard({ admin = false, staffOnly = false }: { admin?: boolean; staffOnly?: boolean }) {
   const { user, loading, error } = useSession();
   const location = useLocation();
@@ -58,7 +59,9 @@ function Guard({ admin = false, staffOnly = false }: { admin?: boolean; staffOnl
       <Empty title="Admin access required">Your account does not have access to this area.</Empty>
     );
   if (staffOnly && !isStaff(user))
-    return <Empty title="Staff access required">Your account does not have access to this area.</Empty>;
+    return (
+      <Empty title="Staff access required">Your account does not have access to this area.</Empty>
+    );
   return <Outlet />;
 }
 type NavIconName =
@@ -131,8 +134,19 @@ function NavIcon({ name }: { name: NavIconName }) {
         <path d="M10 20.5a2 2 0 0 0 4 0" />
       </>
     ),
-    install: <><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 20h14" /></>,
-    push: <><path d="M12 3 4 7v5c0 5 3.5 8 8 9 4.5-1 8-4 8-9V7z" /><path d="m9 12 2 2 4-4" /></>,
+    install: (
+      <>
+        <path d="M12 3v12" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M5 20h14" />
+      </>
+    ),
+    push: (
+      <>
+        <path d="M12 3 4 7v5c0 5 3.5 8 8 9 4.5-1 8-4 8-9V7z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   };
   return (
@@ -156,6 +170,7 @@ function Shell() {
   const [logoutError, setLogoutError] = useState<unknown>();
   const [signingOut, setSigningOut] = useState(false);
   const client = useQueryClient();
+  const notificationCount = useUnreadNotificationCount();
 
   async function logout() {
     setSigningOut(true);
@@ -204,16 +219,40 @@ function Shell() {
             </span>
             {isStaff(user) ? 'Support desk' : 'My tickets'}
           </NavLink>
+          <NavLink
+            to="/notifications"
+            aria-label={
+              notificationCount.data?.unreadCount
+                ? `Notifications, ${notificationCount.data.unreadCount} unread`
+                : 'Notifications'
+            }
+          >
+            <span className="nav-icon">
+              <NavIcon name="notifications" />
+            </span>
+            Notifications
+            {notificationCount.data?.unreadCount ? (
+              <span className="notification-nav-count" aria-hidden="true">
+                {notificationCount.data.unreadCount > 99
+                  ? '99+'
+                  : notificationCount.data.unreadCount}
+              </span>
+            ) : null}
+          </NavLink>
           <NavLink to="/install" className="install-app-nav">
-            <span className="nav-icon"><NavIcon name="install" /></span>
+            <span className="nav-icon">
+              <NavIcon name="install" />
+            </span>
             Install app
           </NavLink>
           {isStaff(user) ? (
             <>
               <p className="nav-label">Administration</p>
               <NavLink to="/admin/announcements">
-                <span className="nav-icon"><NavIcon name="push" /></span>
-                PWA announcements
+                <span className="nav-icon">
+                  <NavIcon name="push" />
+                </span>
+                Announcements
               </NavLink>
             </>
           ) : null}
@@ -248,12 +287,6 @@ function Shell() {
                   <NavIcon name="audit" />
                 </span>
                 Audit trail
-              </NavLink>
-              <NavLink to="/admin/notifications">
-                <span className="nav-icon">
-                  <NavIcon name="notifications" />
-                </span>
-                Notifications
               </NavLink>
             </>
           ) : null}
@@ -364,6 +397,7 @@ export function App() {
             <Route path="/tickets/new" element={<TicketForm />} />
             <Route path="/tickets/:id" element={<TicketDetail />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/install" element={<InstallAppPage />} />
             <Route element={<Guard staffOnly />}>
               <Route path="/admin/announcements" element={<PushAnnouncements />} />
@@ -381,7 +415,6 @@ export function App() {
               <Route path="/admin/users" element={<UserAdmin />} />
               <Route path="/admin/imports" element={<ImportsView />} />
               <Route path="/admin/audit" element={<AuditView />} />
-              <Route path="/admin/notifications" element={<NotificationSettings />} />
             </Route>
           </Route>
         </Route>

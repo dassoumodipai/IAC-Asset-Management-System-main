@@ -436,7 +436,6 @@ function MasterControlPage({
               <div className="master-related">
                 <span>Other administration</span>
                 <Link to="/admin/users">People &amp; access</Link>
-                <Link to="/admin/notifications">Email notifications</Link>
                 <Link to="/admin/audit">Audit trail</Link>
               </div>
             </div>

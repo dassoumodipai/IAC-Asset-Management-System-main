@@ -38,6 +38,16 @@ export class TicketDomain extends AssetDomain {
     );
     return rows.map((r) => r.email);
   }
+  async adminRecipients(c: PoolClient) {
+    const rows = await this.db.query(
+      `SELECT DISTINCT u.email FROM users u
+       WHERE u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
+         AND EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='ADMIN')`,
+      [],
+      c,
+    );
+    return rows.map((r) => r.email);
+  }
   async ticket(req: AuthRequest, ticketId: string, c?: PoolClient, lock = false) {
     const values: any[] = [id(ticketId)];
     const scope = ticketScope(req.user, values);
@@ -145,7 +155,7 @@ export class TicketDomain extends AssetDomain {
         priority: data.priority,
         photoCount: images.length,
       });
-      const recipients = [...new Set([req.user.email, ...(await this.staffRecipients(c))])];
+      const recipients = await this.adminRecipients(c);
       await this.db.notify(c, `ticket:${row.id}:created`, 'TICKET_CREATED', recipients, {
         subject: `IAC support ticket #${row.ticket_number} created`,
         text: 'A support ticket has been created. Sign in to the IAC Asset portal to view the ticket.',

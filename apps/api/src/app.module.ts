@@ -10,6 +10,7 @@ import { LabelController, LabelService } from './labels';
 import { DataTransferController, DataTransferService } from './data-transfers';
 import { AdminDashboardController, AdminDashboardService } from './admin-dashboard';
 import { PushController, PushService } from './push';
+import { NotificationsController, NotificationsService } from './notifications';
 @Module({
   controllers: [
     AuthController,
@@ -20,6 +21,7 @@ import { PushController, PushService } from './push';
     DataTransferController,
     AdminDashboardController,
     PushController,
+    NotificationsController,
   ],
   providers: [
     Db,
@@ -32,6 +34,7 @@ import { PushController, PushService } from './push';
     DataTransferService,
     AdminDashboardService,
     PushService,
+    NotificationsService,
   ],
 })
 export class AppModule {}

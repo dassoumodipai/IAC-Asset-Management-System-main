@@ -413,7 +413,11 @@ export function TicketForm() {
               if (typeof data.description === 'string') setDescription(data.description);
               if (typeof data.category === 'string') setCategory(data.category);
               if (typeof data.priority === 'string') setPriority(data.priority);
-              if (!scannedCode && typeof data.assetId === 'string' && (!data.assetId || eligible.some((item) => item.id === data.assetId)))
+              if (
+                !scannedCode &&
+                typeof data.assetId === 'string' &&
+                (!data.assetId || eligible.some((item) => item.id === data.assetId))
+              )
                 setAssetId(data.assetId);
               setValidation('');
               action.reset();
@@ -661,6 +665,7 @@ export function TicketDetail() {
     );
   const ticket = query.data;
   if (!ticket) return <Empty title="Ticket unavailable" />;
+  const assignedOwner = staffUsers.data?.items.find((item) => item.id === ticket.ownerId);
   const updates = history.data?.pages.flatMap((page) => page.items) ?? ticket.updates ?? [];
   async function reply(event: FormEvent) {
     event.preventDefault();
@@ -688,6 +693,7 @@ export function TicketDetail() {
       .then(() => {
         setCompleting(false);
         setResolution('');
+        setStatusVersion(undefined);
       })
       .catch(() => undefined);
   }
@@ -699,6 +705,7 @@ export function TicketDetail() {
         body: { ownerId: value },
         version: ownerVersion ?? ticket?.version,
       })
+      .then(() => setOwnerVersion(undefined))
       .catch(() => undefined);
   }
   return (
@@ -748,6 +755,7 @@ export function TicketDetail() {
       <ErrorNotice
         error={action.error}
         retry={() => {
+          action.reset();
           void Promise.all([query.refetch(), history.refetch()]).then(() => {
             setDraftVersion(undefined);
             setStatusVersion(undefined);
@@ -784,26 +792,6 @@ export function TicketDetail() {
           {ticket.status !== 'COMPLETED' ? (
             <Panel title="Add an update">
               <form className="form-stack" onSubmit={reply}>
-                <FormTransfer
-                  formId={staff ? 'ticket-staff-reply' : 'ticket-employee-reply'}
-                  fields={[
-                    { key: 'body', label: 'Reply', required: true },
-                    ...(staff
-                      ? [{ key: 'visibility', options: ['PUBLIC', 'INTERNAL'], required: true }]
-                      : []),
-                  ]}
-                  values={{ body, ...(staff ? { visibility } : {}) }}
-                  disabled={action.isPending}
-                  onImport={(data) => {
-                    if (typeof data.body === 'string') {
-                      if (!body) setDraftVersion(ticket.version);
-                      setBody(data.body);
-                    }
-                    if (staff && (data.visibility === 'PUBLIC' || data.visibility === 'INTERNAL'))
-                      setVisibility(data.visibility);
-                    action.reset();
-                  }}
-                />
                 <Field
                   label={visibility === 'INTERNAL' ? 'Internal note' : 'Reply'}
                   htmlFor="reply-body"
@@ -867,13 +855,17 @@ export function TicketDetail() {
                 {ticket.ownerId === user?.id
                   ? 'You'
                   : ticket.ownerId
-                    ? 'Assigned staff member'
+                    ? assignedOwner
+                      ? `${assignedOwner.displayName} · ${assignedOwner.email}`
+                      : 'Assigned staff member'
                     : 'Unassigned'}
               </dd>
               <dt>Asset</dt>
               <dd>
                 {ticket.assetId && assetQuery.data ? (
-                  hasRole(user, 'ADMIN') || hasRole(user, 'IT_ADMIN') || assetQuery.data.currentAssignment?.userId === user?.id ? (
+                  hasRole(user, 'ADMIN') ||
+                  hasRole(user, 'IT_ADMIN') ||
+                  assetQuery.data.currentAssignment?.userId === user?.id ? (
                     <Link to={`/assets/${ticket.assetId}`}>View linked asset →</Link>
                   ) : (
                     'Asset linked (restricted)'
@@ -901,43 +893,6 @@ export function TicketDetail() {
                 ) : null}
                 {hasRole(user, 'ADMIN') ? (
                   <>
-                    <FormTransfer
-                      formId="ticket-owner"
-                      fields={[
-                        {
-                          key: 'ownerId',
-                          label: 'Staff record ID',
-                          required: true,
-                          options:
-                            staffUsers.data?.items
-                              .filter(
-                                (item) =>
-                                  item.state === 'ACTIVE' &&
-                                  !!item.emailVerifiedAt &&
-                                  (item.roles.includes('ADMIN') || item.roles.includes('IT_ADMIN')),
-                              )
-                              .map((item) => item.id) ?? [],
-                        },
-                      ]}
-                      values={{ ownerId }}
-                      disabled={action.isPending || staffUsers.isPending || !!staffUsers.error}
-                      onImport={(data) => {
-                        if (
-                          typeof data.ownerId === 'string' &&
-                          staffUsers.data?.items.some(
-                            (item) =>
-                              item.id === data.ownerId &&
-                              item.state === 'ACTIVE' &&
-                              !!item.emailVerifiedAt &&
-                              (item.roles.includes('ADMIN') || item.roles.includes('IT_ADMIN')),
-                          )
-                        ) {
-                          setOwnerId(data.ownerId);
-                          setOwnerVersion(ticket.version);
-                          action.reset();
-                        }
-                      }}
-                    />
                     <Select
                       label="Assign to staff"
                       htmlFor="ticket-owner"
@@ -1003,17 +958,6 @@ export function TicketDetail() {
                       void status('COMPLETED');
                     }}
                   >
-                    <FormTransfer
-                      formId="ticket-completion"
-                      fields={[{ key: 'resolution', required: true }]}
-                      values={{ resolution }}
-                      disabled={action.isPending}
-                      description="Review the resolution, then confirm completion separately. Importing does not change ticket status."
-                      onImport={(data) => {
-                        if (typeof data.resolution === 'string') setResolution(data.resolution);
-                        action.reset();
-                      }}
-                    />
                     <Field
                       label="Resolution"
                       htmlFor="resolution"

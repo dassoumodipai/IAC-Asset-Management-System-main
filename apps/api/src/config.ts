@@ -17,13 +17,15 @@ export const configuration = () => {
   const url = new URL(origin);
   if (url.origin !== origin || (production && url.protocol !== 'https:'))
     throw new Error('APP_ORIGIN must be an origin and use HTTPS in production');
-  const origins = [...new Set([
-    origin,
-    ...(process.env.ADDITIONAL_APP_ORIGINS || '')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean),
-  ])];
+  const origins = [
+    ...new Set([
+      origin,
+      ...(process.env.ADDITIONAL_APP_ORIGINS || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ]),
+  ];
   for (const allowedOrigin of origins) {
     const parsed = new URL(allowedOrigin);
     if (parsed.origin !== allowedOrigin || (production && parsed.protocol !== 'https:'))
@@ -40,6 +42,34 @@ export const configuration = () => {
     noticeVersion: process.env.PORTAL_NOTICE_VERSION || '1',
   };
 };
+export function isAllowedAppOrigin(value: string): boolean {
+  const config = configuration();
+  if (config.origins.includes(value)) return true;
+  if (config.production) return false;
+
+  try {
+    const url = new URL(value);
+    if (url.origin !== value || url.protocol !== 'http:' || url.port !== '5173') return false;
+    const host = url.hostname.toLowerCase();
+    if (host === 'localhost' || host === '[::1]') return true;
+    const octets = host.split('.').map(Number);
+    if (
+      octets.length !== 4 ||
+      octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
+    )
+      return false;
+    const first = octets[0]!;
+    const second = octets[1]!;
+    return (
+      first === 10 ||
+      first === 127 ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168)
+    );
+  } catch {
+    return false;
+  }
+}
 export function encryptionKey(name: string): Buffer {
   const value = process.env[name] || '';
   if (!/^[a-f0-9]{64}$/i.test(value))
