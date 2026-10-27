@@ -408,19 +408,21 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
     }
   }
   async function commit() {
-    if (!preview?.valid || !confirmed || busy || lock.current || disabled) return;
+    if (!preview || !preview.rows.some((row) => row.valid) || !confirmed || busy || lock.current || disabled) return;
     const selected = ++generation.current;
     lock.current = true;
     setBusy(true);
     setError(undefined);
     try {
-      const result = await api<{ rowCount: number; state: string }>(
+      const result = await api<{ rowCount: number; skippedCount: number; state: string }>(
         `/transfers/${preview.id}/commit`,
         { method: 'POST', body: { confirmed: true } },
       );
       await client.invalidateQueries();
       if (active.current && selected === generation.current) {
-        setMessage(`${result.rowCount} records imported. Changes saved with an audit trail.`);
+        setMessage(
+          `${result.rowCount} records imported. ${result.skippedCount} invalid rows skipped. Changes saved with an audit trail.`,
+        );
         setPreview(undefined);
         setFile(undefined);
         setConfirmed(false);
@@ -462,12 +464,14 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
       />
     );
   if (!definition) return null;
+  const validRowCount = preview?.rows.filter((row) => row.valid).length ?? 0;
+  const skippedRowCount = (preview?.rowCount ?? 0) - validRowCount;
   return (
     <details className="transfer-tools bulk-transfer">
       <summary>Bulk import {definition.label}</summary>
       <p className="muted small-text">
         {definition.description} Use at most {MAX_BULK_IMPORT_ROWS} records per batch. Nothing is applied until you
-        confirm a valid preview.
+        confirm the valid rows. Rows needing correction can be fixed and imported later.
       </p>
       <ActionButtons
         busy={disabled || busy}
@@ -565,8 +569,14 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
               </tbody>
             </table>
           </div>
-          {preview.valid ? (
+          {validRowCount > 0 ? (
             <>
+              {skippedRowCount > 0 ? (
+                <p className="notice warning">
+                  {validRowCount} valid rows can be imported now. {skippedRowCount} rows needing
+                  correction will be skipped and can be uploaded later in a separate batch.
+                </p>
+              ) : null}
               <label className="checkbox">
                 <input
                   type="checkbox"
@@ -574,7 +584,8 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
                   disabled={disabled || busy}
                   onChange={(event) => setConfirmed(event.target.checked)}
                 />
-                I reviewed these changes and authorize applying them.{' '}
+                I reviewed these changes and authorize importing {validRowCount} valid rows.
+                {skippedRowCount > 0 ? ` ${skippedRowCount} invalid rows will be skipped.` : ''}{' '}
                 {sendEmails
                   ? 'Invitation and assignment emails may be sent.'
                   : 'Email is off for this batch.'}
@@ -587,12 +598,12 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
                   void commit();
                 }}
               >
-                Apply validated import
+                Apply {validRowCount} valid rows
               </button>
             </>
           ) : (
             <p className="notice warning">
-              Correct the file and validate again. No rows have been imported.
+              There are no valid rows to import. Correct the file and validate it again.
             </p>
           )}
         </div>

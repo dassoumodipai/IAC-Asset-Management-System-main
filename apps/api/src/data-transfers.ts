@@ -641,12 +641,15 @@ export class DataTransferService {
       if (batch.state === 'COMMITTED') return batch.receipt;
       if (new Date(batch.expires_at).getTime() <= Date.now())
         throw new ConflictException('Transfer preview expired; create a new preview');
-      if (!batch.preview.valid)
-        throw new ConflictException('Correct invalid rows and create a new preview');
-      if (duplicateInvitationRows(batch.module, batch.raw_rows).size)
-        throw new ConflictException('An invitation email appears more than once in this batch');
+      if (!Array.isArray(batch.preview.rows) || batch.preview.rows.length !== batch.raw_rows.length)
+        throw new ConflictException('The import preview is incomplete; validate the file again');
+      const skippedCount = batch.preview.rows.filter((row: { valid?: boolean }) => !row.valid).length;
+      if (!batch.preview.rows.some((row: { valid?: boolean }) => row.valid))
+        throw new ConflictException('There are no valid rows to import; correct the file and validate again');
       const results: RowResult[] = [];
       for (let i = 0; i < batch.raw_rows.length; i++) {
+        // Keep bad rows out of the transaction. A later import can apply them after correction.
+        if (!batch.preview.rows[i]?.valid) continue;
         actor = await this.currentActor(req);
         try {
           results.push(
@@ -665,7 +668,7 @@ export class DataTransferService {
           throw new ConflictException(`Row ${i + 1}: ${safeError(error)}. No rows were applied.`);
         }
       }
-      const receipt = { id: batchId, state: 'COMMITTED', rowCount: results.length, results };
+      const receipt = { id: batchId, state: 'COMMITTED', rowCount: results.length, skippedCount, results };
       await this.db.query(
         "UPDATE data_transfers SET state='COMMITTED',committed_at=now(),receipt=$2 WHERE id=$1",
         [batchId, JSON.stringify(receipt)],
@@ -674,6 +677,7 @@ export class DataTransferService {
       await this.db.audit(client, actor.user, 'data_transfer', batchId, 'TRANSFER_COMMITTED', {
         module: batch.module,
         rowCount: results.length,
+        skippedCount,
         sourceSha256: batch.source_sha256,
         reason: batch.reason,
       });
