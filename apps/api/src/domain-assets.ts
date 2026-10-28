@@ -166,6 +166,10 @@ export class AssetDomain extends MasterDomain {
         (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],
       );
       assertVersion(req, before.version);
+      const financialFields = ['purchaseCost','purchaseDate','currency','invoiceNumber','supplier','residualValue','depreciationMethod','usefulLifeYears'];
+      if (financialFields.some(key => key in changes) &&
+          (await this.db.query('SELECT 1 FROM asset_finance WHERE asset_id=$1', [assetId], c)).length)
+        throw new ConflictException('Use the Finance submission and review workflow to change financial fields after submission');
       const merged = { ...camel(before), ...changes };
       await validateAsset(this.db, merged, c, camel(before));
       const [custody] = await this.db.query(
@@ -409,4 +413,4 @@ export class AssetDomain extends MasterDomain {
       return camel(after);
     });
   }
-}
+          }
