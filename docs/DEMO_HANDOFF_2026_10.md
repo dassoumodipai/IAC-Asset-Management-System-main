@@ -73,3 +73,5 @@ Recovery/readiness checkpoint: disposable synthetic PostgreSQL14 logical restore
 Reproducibility checkpoint: actual tracked-source ZIP installed with `npm ci` into a clean directory, fresh setup generated private defaults, clean build/typecheck passed,18migrations applied to a fresh disposable database and the second migration run applied0. All current checks also pass under Node24.22.1. Executive summary queries now run in a read-only repeatable-read transaction, so totals/tickets/departments use the same snapshot during concurrent writes.
 
 Setup regression: `npm run test:setup` checks private local file generation/preservation and production-helper validation/no-secret-output. The production helper is Unix/bash-based; Windows users need WSL or a separately approved setup route. No deployment has been executed.
+
+SMTP test safety: required fake-mail dependency failures now fail acceptance/recovery tests rather than returning early as if they passed. A deliberate loopback-port1 run failed with the expected dependency error, then the complete101test suite passed with Mailpit available. Test SMTP settings override operational credentials.
