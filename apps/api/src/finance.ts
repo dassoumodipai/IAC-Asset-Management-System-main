@@ -364,16 +364,28 @@ export class FinanceService {
       const departments = await this.db.query(
         `SELECT coalesce(d.name,'Not set') AS department,count(*)::int AS asset_count,count(*) FILTER(WHERE f.approved_at IS NOT NULL)::int AS approved_count,coalesce(sum(f.approved_cost) FILTER(WHERE f.approved_at IS NOT NULL),0)::text AS approved_cost FROM assets a LEFT JOIN departments d ON d.id=a.department_id LEFT JOIN asset_finance f ON f.asset_id=a.id GROUP BY d.name ORDER BY count(*) DESC,coalesce(d.name,'Not set') LIMIT 25`,
       );
+      const activity = await this.db.query(
+        `WITH bounds AS(SELECT date_trunc('week',now() AT TIME ZONE 'Asia/Kolkata')::date AS current_week),weeks AS(SELECT generate_series(current_week-77,current_week,interval '1 week')::date AS week_start FROM bounds),
+        approvals AS(SELECT date_trunc('week',occurred_at AT TIME ZONE 'Asia/Kolkata')::date week_start,count(*)::int approvals FROM asset_finance_events WHERE action='APPROVED' AND occurred_at>=(SELECT (current_week-77)::timestamp AT TIME ZONE 'Asia/Kolkata' FROM bounds) AND occurred_at<=now() GROUP BY 1),
+        opened AS(SELECT date_trunc('week',created_at AT TIME ZONE 'Asia/Kolkata')::date week_start,count(*)::int opened FROM tickets WHERE created_at>=(SELECT (current_week-77)::timestamp AT TIME ZONE 'Asia/Kolkata' FROM bounds) AND created_at<=now() GROUP BY 1),
+        completed AS(SELECT date_trunc('week',completed_at AT TIME ZONE 'Asia/Kolkata')::date week_start,count(*)::int completed FROM tickets WHERE completed_at>=(SELECT (current_week-77)::timestamp AT TIME ZONE 'Asia/Kolkata' FROM bounds) AND completed_at<=now() GROUP BY 1)
+        SELECT w.week_start,coalesce(a.approvals,0)::int AS approval_events,coalesce(o.opened,0)::int AS tickets_created,coalesce(c.completed,0)::int AS tickets_completed,(w.week_start=(SELECT current_week FROM bounds)) AS partial_week FROM weeks w LEFT JOIN approvals a USING(week_start) LEFT JOIN opened o USING(week_start) LEFT JOIN completed c USING(week_start) ORDER BY w.week_start`,
+        [],
+        c,
+      );
       return {
         ...camel(row),
         ...camel(tickets),
         departments: departments.map(camel),
+        activity: activity.map(camel),
         currency: 'INR',
         definitions: {
           approvedAcquisitionCost:
             'Sum of latest Finance-approved INR acquisition costs, including the last approved value while an amendment is pending. Not net book value, depreciation, cash spend or budget variance.',
           approvedAssets:
             'Assets with at least one Finance approval; pending amendments retain the last approved snapshot.',
+          activity:
+            'Last 12 Monday-start weeks in Asia/Kolkata, including the current partial week. Counts are Finance approval events (including amendments), tickets created and tickets completed, not distinct asset purchases, spend, historical backlog, SLA attainment or book value. Zero means no recorded events in this database for that week; migrated history may be incomplete.',
           scope:
             'Organization-wide, all asset statuses. Department breakdown shows the largest 25 groups. No employee identities or private ticket text.',
         },

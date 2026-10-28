@@ -751,3 +751,28 @@ test('camera scanner decodes generated QR pixels through simulated video stream 
   await expect(page.getByText('Dell Latitude 5450', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: '/downloads/iac-simulated-qr-result.png', fullPage: true });
 });
+
+test('Executive weekly activity renders defined source counts at desktop and mobile', async ({
+  page,
+  context,
+}) => {
+  await signIn(context, executive);
+  await page.goto('/executive');
+  await expect(page.getByRole('heading', { name: 'Recorded activity by week' })).toBeVisible();
+  await expect(page.locator('.executive-activity-week')).toHaveCount(12);
+  await expect(
+    page.getByText(
+      'Monday-start weeks · Asia/Kolkata · current week is partial. Counts are events, not spending or historical backlog.',
+    ),
+  ).toBeVisible();
+  await page.getByText('Exact weekly counts and definitions', { exact: true }).click();
+  await expect(
+    page.getByRole('columnheader', { name: 'Approval events', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('heading', { name: 'Recorded activity by week' }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '/downloads/iac-executive-trends-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('heading', { name: 'Recorded activity by week' }).scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '/downloads/iac-executive-trends-mobile.png' });
+});

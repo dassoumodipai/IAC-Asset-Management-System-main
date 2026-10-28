@@ -1,6 +1,6 @@
 # What is connected now, and what remains
 
-Checkpoint 28 October 2026, 21:40 IST. Local tested source is ahead of the partially published fork branch. No production deployment is implied.
+Checkpoint 29 October 2026, 00:35 IST. Local tested source is ahead of the partially published fork branch. No production deployment is implied.
 
 | Capability | Current implementation | What can be configured now | Missing or later |
 |---|---|---|---|
@@ -8,10 +8,10 @@ Checkpoint 28 October 2026, 21:40 IST. Local tested source is ahead of the parti
 | Person equipment | New Admin/Finance directory and employee-own view, current equipment grouped by person | Existing employee references, departments and item data | Atomic multi-item handover, configurable equipment bundles, HR sync |
 | Custody | Existing assign/transfer/return, reasons, locks, versions, audit; incremental additions tested | Approved eligible recipients and fixed workflow inputs | Configurable approval routing and alternate custody policies; IT remains support-only |
 | Finance | New submit/return/approve, independent reviewer, stale-version rejection and approved snapshot | Cost, invoice, supplier and dates within validated schema | User-configurable approval thresholds, depreciation/accounting policy, budget/procurement integration |
-| Executive | New read-only approved acquisition cost/coverage/department and operational summary | Existing source data; role assignments | Custom report builder, policy-approved valuation/depreciation, unrestricted department export |
+| Executive | Read-only approved acquisition cost/coverage/department and operational summary plus defined 12-week event counts | Existing source data; role assignments | Custom report builder, policy-approved valuation/depreciation, unrestricted department export |
 | Tickets | Existing API/DB creation, item association, ownership/status/comments/photos and scoped access | Categories/priority reference data within existing rules | Configurable SLA calendars/escalation routes, external service desk sync |
 | Imports | Existing typed templates, preview, explicit commit, fixed module rules and audit | Supported field values; valid rows imported while invalid rows skipped; emails opt-in | Arbitrary column/rule engine; large asynchronous import jobs; arbitrary source adapters |
-| Notifications | Existing encrypted SMTP outbox/retry worker plus in-app announcements/push; unread history now paged | SMTP environment settings, announcement audience/content/attachments and existing notification recipients | Editable/versioned operational email template designer, provider bounce/complaint events and alerts |
+| Notifications | Encrypted SMTP outbox/retry worker plus persistent scoped workflow inbox and announcements/push; read state and precise paging | SMTP environment settings, announcement audience/content/attachments and existing notification recipients | Editable/versioned operational email template designer, provider bounce/complaint events and alerts |
 | Delivery health | New Admin-only real DB status/filter/attempt history | Filter/state/page presentation | Safe governed resend workflow, automated escalation, confirmed inbox delivery |
 | Security/access | Existing sessions, portal acceptance and MFA, expanded to Finance/Executive; Finance evidence append-only | Existing roles/reference settings; role changes require reasons | Tenant isolation, SSO/SCIM, custom role/field permission builder, penetration testing |
 | Scale | Repeatable rollback-only 50k-asset query probe plus short20concurrent-reader HTTP probe with payload/role checks | Local test dataset and query measurement | Sustained mixed read/write load, realistic history/photo/import volume, production capacity and production restore proof |
@@ -31,3 +31,12 @@ At the 22:26 checkpoint, 102 integration, 27 API unit, 62 web unit and 33 Chrome
 Latest flexibility addition: Finance queue department/asset-type filters are connected to server paging and historical master/inventory options. It does not add configurable approval routes or custom-field schemas. Finance API regression suite and5Financebrowser tests pass; decisive full regression will be repeated at the delivery checkpoint.
 
 Support triage now exposes category/search and team ownership views (Any/Mine/Unassigned), with scoped exports and paging. This is queue flexibility, not automated assignment/escalation or configurable SLA policy.
+
+## Overnight additions
+
+- Private retained PDF/XLSX invoice evidence, hashes, bounded local extraction, explicit per-field review/apply and separate independent Finance approval. Source ID/hash and download remain in approval history. No OCR, universal layout handling or automatic per-asset allocation. See `INVOICE_EVIDENCE.md`.
+- Transactional account-specific workflow notifications alongside queued email, separate persistent read state and current-role/entity access rechecks. No real Gmail transport configured. See `WORKFLOW_NOTIFICATIONS.md`.
+- Full-viewport scanner dialog fix; browser test decodes actual generated QR pixels from a simulated video stream and opens the server-backed asset view. Physical camera/printer conditions still unverified.
+- Executive weekly activity counts are source-recorded approval events (including amendments), ticket creation and completion in Kolkata Monday-start weeks. Current week is partial; zeros are recorded-event zeros, not proof no historical activity occurred. No spend, backlog, SLA or historical valuation trend is implied.
+
+Latest source verification and measurements are recorded at each handoff. Earlier counts above are historical checkpoints, not the final test inventory. PR remains held until the user asks. No production deployment, external mail, private real inventory or upstream merge was performed.

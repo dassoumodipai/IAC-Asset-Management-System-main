@@ -571,7 +571,19 @@ interface ExecutiveSummary {
     approvedCount: number;
     approvedCost: string;
   }[];
-  definitions: { approvedAcquisitionCost: string; approvedAssets: string; scope: string };
+  activity: {
+    weekStart: string;
+    approvalEvents: number;
+    ticketsCreated: number;
+    ticketsCompleted: number;
+    partialWeek: boolean;
+  }[];
+  definitions: {
+    approvedAcquisitionCost: string;
+    approvedAssets: string;
+    scope: string;
+    activity: string;
+  };
 }
 export function ExecutiveDashboard() {
   const { user } = useSession(),
@@ -652,6 +664,82 @@ export function ExecutiveDashboard() {
           </dl>
         </Panel>
       </div>
+      <Panel title="Recorded activity by week">
+        <p className="muted">
+          Monday-start weeks · Asia/Kolkata · current week is partial. Counts are events, not
+          spending or historical backlog.
+        </p>
+        <div className="executive-activity-chart" aria-label="Weekly recorded activity">
+          {(d.activity ?? []).map((w) => {
+            const max = Math.max(
+              1,
+              ...d.activity.flatMap((v) => [
+                v.approvalEvents,
+                v.ticketsCreated,
+                v.ticketsCompleted,
+              ]),
+            );
+            return (
+              <div className="executive-activity-week" key={w.weekStart}>
+                <span>
+                  {new Date(w.weekStart + 'T00:00:00+05:30').toLocaleDateString('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    day: 'numeric',
+                    month: 'short',
+                  })}
+                  {w.partialWeek ? ' *' : ''}
+                </span>
+                <div>
+                  {[
+                    ['Finance approvals', w.approvalEvents, 'approval'],
+                    ['Tickets created', w.ticketsCreated, 'created'],
+                    ['Tickets completed', w.ticketsCompleted, 'completed'],
+                  ].map(([label, value, style]) => (
+                    <div className="executive-activity-series" key={label}>
+                      <span
+                        className={`executive-activity-bar ${style}`}
+                        style={{ width: `${(Number(value) / max) * 100}%` }}
+                      />
+                      <span>
+                        {label}: {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <details>
+          <summary>Exact weekly counts and definitions</summary>
+          <p>{d.definitions.activity}</p>
+          <div className="table-scroll finance-responsive-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Week starting</th>
+                  <th>Approval events</th>
+                  <th>Tickets created</th>
+                  <th>Tickets completed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(d.activity ?? []).map((w) => (
+                  <tr key={w.weekStart}>
+                    <td data-label="Week starting">
+                      {w.weekStart}
+                      {w.partialWeek ? ' (partial)' : ''}
+                    </td>
+                    <td data-label="Approval events">{w.approvalEvents}</td>
+                    <td data-label="Tickets created">{w.ticketsCreated}</td>
+                    <td data-label="Tickets completed">{w.ticketsCompleted}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </Panel>
       <Panel title="Department overview">
         <div className="table-scroll finance-responsive-table">
           <table>

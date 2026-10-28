@@ -222,3 +222,5 @@ See `INVOICE_EVIDENCE.md` for formats, limits, review and operational gates.
 ## Workflow inbox
 
 `GET /notifications/workflow` accepts `filter=ALL|UNREAD`, `limit` (1-100) and opaque `cursor`. Returns account-scoped workflow notices with actual permitted target paths, counts and `nextCursor`. `POST /notifications/workflow/:id/read` and `POST /notifications/workflow/read-all` require CSRF. Repeated reads are idempotent; another user's or currently inaccessible notice is 404. `/notifications/unread-count` includes announcements and workflows. See `WORKFLOW_NOTIFICATIONS.md` for recipient rules, event coverage and limits.
+
+Executive summary includes `activity`, 12 zero-filled Monday-start Kolkata weeks with `approvalEvents`, `ticketsCreated`, `ticketsCompleted`, and `partialWeek`. It counts recorded events, including repeat approvals of an amended asset, not purchases, money or historical backlog. Scope definitions travel with the response. No ticket/private invoice text or user identity is returned.

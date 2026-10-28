@@ -4294,3 +4294,13 @@ input[type='checkbox']:focus-visible {
 .camera-scanner-dialog {width:100vw;height:100dvh;}
 
 html.camera-scanner-open {overflow:hidden;scrollbar-gutter:auto;}
+
+.executive-activity-chart{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:16px 0;}
+.executive-activity-week{border:1px solid var(--border);border-radius:8px;padding:12px;min-width:0;}
+.executive-activity-week>span{font-weight:600;}
+.executive-activity-series{position:relative;min-height:28px;margin-top:6px;background:#f5f7f9;border-radius:4px;overflow:hidden;}
+.executive-activity-series>span:last-child{position:relative;z-index:1;padding:4px 6px;display:block;font-size:12px;}
+.executive-activity-bar{position:absolute;inset:0 auto 0 0;min-width:0;opacity:.4;}
+.executive-activity-bar.approval{background:#79a5d3;}.executive-activity-bar.created{background:#dfac60;}.executive-activity-bar.completed{background:#77b69c;}
+@media(max-width:700px){.executive-activity-chart{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}.executive-activity-week{padding:8px;}}
+@media(max-width:360px){.executive-activity-chart{grid-template-columns:1fr;}}

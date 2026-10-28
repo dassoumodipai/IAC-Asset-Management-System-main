@@ -255,6 +255,60 @@ describe(
         reviewer.id,
       ]);
     });
+    it('Executive weekly activity reconciles source events, zero fills and uses Kolkata Monday boundaries', async () => {
+      const [time] = await db.query(
+        "SELECT date_trunc('week',now() AT TIME ZONE 'Asia/Kolkata')::date::text week",
+      );
+      const [trendAsset] = await db.query(
+        "INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by)VALUES('IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Trend boundary fixture','Owned','In Store','Good','Low',$1)RETURNING id",
+        [admin.id],
+      );
+      await db.query(
+        `INSERT INTO asset_finance_events(asset_id,action,actor_id,reason,finance_version,occurred_at)VALUES($1,'APPROVED',$2,'Boundary synthetic approval',1,($3::date-7)::timestamp AT TIME ZONE 'Asia/Kolkata'),($1,'APPROVED',$2,'Second amendment same asset',2,($3::date-7)::timestamp AT TIME ZONE 'Asia/Kolkata'),($1,'APPROVED',$2,'Before boundary',3,(($3::date-7)::timestamp AT TIME ZONE 'Asia/Kolkata')-interval '1 microsecond')`,
+        [trendAsset.id, reviewer.id, time.week],
+      );
+      await db.query(
+        `INSERT INTO tickets(reporter_id,subject,description,category,priority,status,resolution,completed_by,created_at,completed_at)VALUES($1,'Trend fixture','Synthetic','HARDWARE','LOW','COMPLETED','Verified synthetic resolution',$1,($2::date-14)::timestamp AT TIME ZONE 'Asia/Kolkata',($2::date-7)::timestamp AT TIME ZONE 'Asia/Kolkata')`,
+        [employee.id, time.week],
+      );
+      const summary = await finance.executive(req(executive));
+      assert.equal(summary.activity.length, 12);
+      assert.equal(summary.activity.filter((w: any) => w.partialWeek).length, 1);
+      assert.equal(summary.activity.at(-1).weekStart, time.week);
+      assert(
+        summary.activity.every(
+          (w: any) =>
+            Number.isInteger(w.approvalEvents) &&
+            Number.isInteger(w.ticketsCreated) &&
+            Number.isInteger(w.ticketsCompleted),
+        ),
+      );
+      const expected = await db.query(
+        `SELECT date_trunc('week',occurred_at AT TIME ZONE 'Asia/Kolkata')::date AS week,count(*)::int n FROM asset_finance_events WHERE action='APPROVED' AND occurred_at>=($1::date-77)::timestamp AT TIME ZONE 'Asia/Kolkata' AND occurred_at<=now() GROUP BY 1`,
+        [time.week],
+      );
+      for (const week of summary.activity)
+        assert.equal(week.approvalEvents, expected.find((r) => r.week === week.weekStart)?.n ?? 0);
+      const opened = await db.query(
+        `SELECT date_trunc('week',created_at AT TIME ZONE 'Asia/Kolkata')::date week,count(*)::int n FROM tickets WHERE created_at>=($1::date-77)::timestamp AT TIME ZONE 'Asia/Kolkata' AND created_at<=now() GROUP BY 1`,
+        [time.week],
+      );
+      for (const week of summary.activity)
+        assert.equal(week.ticketsCreated, opened.find((r) => r.week === week.weekStart)?.n ?? 0);
+      const completed = await db.query(
+        `SELECT date_trunc('week',completed_at AT TIME ZONE 'Asia/Kolkata')::date week,count(*)::int n FROM tickets WHERE completed_at>=($1::date-77)::timestamp AT TIME ZONE 'Asia/Kolkata' AND completed_at<=now() GROUP BY 1`,
+        [time.week],
+      );
+      for (const week of summary.activity)
+        assert.equal(
+          week.ticketsCompleted,
+          completed.find((r) => r.week === week.weekStart)?.n ?? 0,
+        );
+      assert.match(summary.definitions.activity, /including amendments/);
+      assert.equal(JSON.stringify(summary.activity).includes('Boundary synthetic'), false);
+      assert.equal((await call(employee, '/finance/executive-summary')).status, 403);
+      assert.equal((await call(itAdmin, '/finance/executive-summary')).status, 403);
+    });
     it('invoice HTTP enforces session, CSRF, role, version and private binary retrieval', async () => {
       const Excel = (await import('exceljs')).default,
         wb = new Excel.Workbook();
