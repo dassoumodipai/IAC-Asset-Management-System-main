@@ -135,6 +135,8 @@ test('fresh Admin signs in, enrolls authenticator, accepts notice and signs in a
  await expect(page.getByRole('heading',{name:'Your portal access'})).toBeVisible();
  await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Accept and continue'}).click();
  await expect(page).toHaveURL(/dashboard/);
+ await expect(page.getByText('Total assets',{exact:true})).toBeVisible();
+ await expect(page.locator('.skeleton').first()).toHaveCount(0);
  await page.screenshot({path:'/downloads/iac-fresh-admin-onboarding.png'});
  await page.getByRole('button',{name:'Sign out',exact:true}).click();
  await page.getByLabel('Work email').fill(email);await page.getByLabel('Password',{exact:true}).fill(password);
