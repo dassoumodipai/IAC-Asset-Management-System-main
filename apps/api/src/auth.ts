@@ -15,6 +15,7 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
@@ -1061,6 +1062,20 @@ export class AuthController {
   @Get('health') async health() {
     await this.auth.db.query('SELECT 1');
     return { status: 'ok' };
+  }
+  @Get('ready') async ready() {
+    try {
+      const [migration] = await this.auth.db.query(
+        "SELECT name FROM schema_migrations WHERE name='018_finance_evidence_immutable.sql'",
+      );
+      if (!migration) throw new Error('Required migration missing');
+      // Resolve the columns required by this release without exposing data.
+      await this.auth.db.query(`SELECT a.id,f.version,e.finance_version FROM assets a
+        LEFT JOIN asset_finance f ON f.asset_id=a.id LEFT JOIN asset_finance_events e ON e.asset_id=a.id WHERE false`);
+      return { status: 'ready' };
+    } catch {
+      throw new ServiceUnavailableException('Application is not ready');
+    }
   }
   @Get('auth/csrf') csrf(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const c = configuration();

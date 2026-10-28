@@ -18,3 +18,13 @@ Apply infra/runtime-grants.sql on the dedicated app database using its migration
 Master Control upgrade: apply migration 004 with the migration owner, then reapply infra/runtime-grants.sql. The runtime needs INSERT/UPDATE on departments and locations as well as reference_values. Existing records and stable codes are retained; do not recreate or truncate the database to upgrade.
 
 Single-server Docker Compose + Caddy deployment: see [DEPLOY_SINGLE_SERVER.md](DEPLOY_SINGLE_SERVER.md) and `infra/docker-compose.prod.yml`.
+
+## Disposable restore drill
+
+`npm run verify:restore:test` only accepts a loopback database whose name ends in `_test`. Stop test writers first. It needs PostgreSQL client binaries matching the server major version and test-owner permission to create a disposable database. It dumps synthetic data to a private temporary directory, restores into a new randomly named `_test` database, compares complete-row digests and counts for 16 selected core tables, checks custody/reference invariants and attempts a forbidden Finance-evidence mutation. It never starts a worker or dispatches mail. It deletes the temporary archive/database in its cleanup path; a failed cleanup must be investigated.
+
+The 28 October local PostgreSQL14 drill passed. This does not certify the PostgreSQL17 container path, production point-in-time recovery, backup encryption, key recovery or RPO/RTO. Those remain separate release gates. Never point this script at production or reuse synthetic archives as backups.
+
+## Liveness and readiness
+
+`/api/v1/health` remains a database-connectivity liveness probe. `/api/v1/ready` additionally requires migration018 and the Finance columns used by this release. It returns only a generic503 when unavailable; no schema names or connection details are sent to callers. The production compose API healthcheck now uses readiness. This is a minimal release-schema check, not a comprehensive database-integrity, SMTP or worker-liveness check.
