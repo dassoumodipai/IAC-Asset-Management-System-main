@@ -32,7 +32,7 @@ test('triage ownership combines category/search/paging and cannot expand employe
     if (i < 3) expected.unshift(r.id);
   }
   const req = (u: any) => ({ user: u }) as AuthRequest;
-  let page = await service.tickets(req(it), {
+  const page = await service.tickets(req(it), {
     ownership: 'UNASSIGNED',
     q: tag,
     category: 'HARDWARE',

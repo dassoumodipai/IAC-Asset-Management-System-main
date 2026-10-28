@@ -74,7 +74,7 @@ export function EquipmentPeople() {
           />
         </Field>
         <ErrorNotice error={query.error} retry={() => void query.refetch()} />
-        {query.isPending ? (
+        {query.error ? null : query.isPending ? (
           <Loading />
         ) : people.length ? (
           <div className="equipment-people-grid">

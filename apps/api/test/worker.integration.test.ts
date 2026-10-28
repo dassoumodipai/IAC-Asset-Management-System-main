@@ -137,3 +137,15 @@ test('concurrent worker claims do not send the same queued delivery twice', asyn
     );
   }
 });
+
+test('Finance mail checks current role at dispatch and never sends to revoked recipients',async()=>{
+ const id=randomUUID(),email=`finance-worker-${id}@example.org`;
+ await db.query("INSERT INTO users(id,email,display_name,state,email_verified_at) VALUES($1,$2,'Synthetic Finance worker','ACTIVE',now())",[id,email]);
+ await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'FINANCE')",[id]);
+ async function queued(){const key=`finance-worker:${randomUUID()}`;await db.tx(c=>db.notify(c,key,'FINANCE_SUBMITTED',[email],{subject:'Synthetic Finance review',text:'Local fake SMTP only'}));const[row]=await db.query('SELECT d.id FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',[key]);await db.query("UPDATE email_deliveries SET next_attempt_at='1900-01-01' WHERE id=$1",[row.id]);return row.id;}
+ const revoked=await queued();await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role_code='FINANCE'",[id]);await dispatchOnce(db);
+ assert.deepEqual((await db.query('SELECT state,last_error_code,provider_message_id FROM email_deliveries WHERE id=$1',[revoked]))[0],{state:'DEAD',last_error_code:'RECIPIENT_INELIGIBLE',provider_message_id:null});
+ assert.equal((await db.query('SELECT count(*)::int n FROM email_attempts WHERE delivery_id=$1',[revoked]))[0].n,0);
+ assert.ok(await checkSmtpAvailable(),'Finance acceptance requires local fake mail sink');
+ await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'FINANCE')",[id]);const valid=await queued();await dispatchOnce(db);assert.equal((await db.query('SELECT state FROM email_deliveries WHERE id=$1',[valid]))[0].state,'ACCEPTED');
+});

@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { Db } from './db';
+import { configuration } from './config';
 import { AuthRequest, SessionGuard, requireRole, assertVersion } from './security';
 import { assetPatch, camel, validateAsset } from './domain-helpers';
 
@@ -200,6 +201,15 @@ export class FinanceService {
         financeVersion: row.version,
         assetVersion: asset.version,
       });
+      const reviewers = await this.db.query(
+        `SELECT DISTINCT u.email FROM users u JOIN user_roles r ON r.user_id=u.id
+         WHERE r.role_code='FINANCE' AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.id<>$1`,
+        [req.user.id], c,
+      );
+      await this.db.notify(c, `finance:${id}:v${row.version}:submitted`, 'FINANCE_SUBMITTED', reviewers.map(u=>u.email), {
+        subject: `Finance review requested: ${asset.asset_code}`,
+        text: `An asset record is ready for independent Finance review. Sign in to review the current version: ${configuration().origin}/finance/${id}\nNo approval is recorded by this notification.`,
+      });
     });
     return this.detail(req, id);
   }
@@ -278,6 +288,15 @@ export class FinanceService {
         reason: data.reason,
         financeVersion: row.version,
         ...details,
+      });
+      const submitters = await this.db.query(
+        `SELECT u.email FROM users u WHERE u.id=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
+         AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='ADMIN')`,
+        [current.submitted_by], c,
+      );
+      await this.db.notify(c, `finance:${id}:v${row.version}:${action.toLowerCase()}`, `FINANCE_${action}`, submitters.map(u=>u.email), {
+        subject: `Finance review ${action === 'APPROVED' ? 'approved' : 'returned'}: ${asset.asset_code}`,
+        text: `Finance has ${action === 'APPROVED' ? 'approved' : 'returned'} this asset record. Sign in to inspect the decision and current record: ${configuration().origin}/finance/${id}`,
       });
     });
     return this.detail(req, id);

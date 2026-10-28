@@ -469,7 +469,7 @@ export function SecurityScreen() {
     <AccessLayout>
       <div className="auth-card">
         <h1>Two-step verification</h1>
-        <p className="muted">Admin and IT access requires an authenticator app.</p>
+        <p className="muted">Admin, IT, Finance and Executive access requires an authenticator app.</p>
         <ErrorNotice error={error} />
         {codes.length ? (
           <>

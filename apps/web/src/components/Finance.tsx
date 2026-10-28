@@ -151,7 +151,7 @@ export function FinanceQueue() {
         </div>
         <ErrorNotice error={references.error} retry={() => void references.refetch()} />
         <ErrorNotice error={query.error} retry={() => void query.refetch()} />
-        {query.isPending ? (
+        {query.error ? null : query.isPending ? (
           <Loading />
         ) : items.length ? (
           <div className="table-scroll finance-responsive-table">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -171,6 +171,18 @@ function NavIcon({ name }: { name: NavIconName }) {
 function Shell() {
   const { user } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const [mobile, setMobile] = useState(()=>window.matchMedia('(max-width: 650px)').matches);
+  useEffect(()=>{
+    const media=window.matchMedia('(max-width: 650px)');
+    const change=()=>{setMobile(media.matches);setMenuOpen(false);};
+    media.addEventListener('change',change);return()=>media.removeEventListener('change',change);
+  },[]);
+  useEffect(()=>{
+    if(!menuOpen)return;
+    const close=(event:KeyboardEvent)=>{if(event.key==='Escape'){setMenuOpen(false);menuButton.current?.focus();}};
+    window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close);
+  },[menuOpen]);
   const [logoutError, setLogoutError] = useState<unknown>();
   const [signingOut, setSigningOut] = useState(false);
   const client = useQueryClient();
@@ -195,7 +207,8 @@ function Shell() {
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <aside id="mobile-nav" className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
+      {mobile && menuOpen ? <button className="nav-scrim" aria-label="Close navigation" onClick={()=>{setMenuOpen(false);menuButton.current?.focus();}} /> : null}
+      <aside id="mobile-nav" inert={mobile && !menuOpen ? true : undefined} className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
         <Link to="/dashboard" className="brand">
           <BrandMark />
           <span className="brand-text">
@@ -347,6 +360,7 @@ function Shell() {
           <button
             type="button"
             className="menu-button"
+            ref={menuButton}
             onClick={() => setMenuOpen(!menuOpen)}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"

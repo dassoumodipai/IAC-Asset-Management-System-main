@@ -131,6 +131,7 @@ async function seed(db: Db) {
   )
     throw new Error('Synthetic seeding requires a local database name ending _dev or _test');
   await db.tx(async (c) => {
+    await db.query('SELECT pg_advisory_xact_lock(715025)', [], c);
     await db.query(
       "INSERT INTO departments(code,name) VALUES('DEMO_IT','Demo IT'),('DEMO_OPS','Demo Operations') ON CONFLICT DO NOTHING",
       [],
@@ -141,7 +142,9 @@ async function seed(db: Db) {
       [],
       c,
     );
-    for (const type of ['Laptop', 'Monitor']) {
+    for (const type of ['Laptop', 'Monitor', 'Mouse', 'Keyboard']) {
+      const existing = await db.query(`SELECT a.id FROM assets a JOIN audit_events e ON e.entity_id=a.id AND e.action='SYNTHETIC_SEED' WHERE a.description=$1 AND a.asset_type=$2 AND a.department_id=(SELECT id FROM departments WHERE code='DEMO_IT') LIMIT 1`, [`Synthetic demonstration ${type.toLowerCase()}`,type],c);
+      if (existing.length) continue;
       const [asset] = await db.query(
         "INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,department_id,location_id) SELECT 'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware',$1,$2,'Owned','In Store','Good','Low',(SELECT id FROM departments WHERE code='DEMO_IT'),(SELECT id FROM locations WHERE code='DEMO_OFFICE') RETURNING id",
         [type, `Synthetic demonstration ${type.toLowerCase()}`],
@@ -151,7 +154,7 @@ async function seed(db: Db) {
     }
   });
   process.stdout.write(
-    'Synthetic departments, location, and two assets created. No sample accounts or passwords were created.\n',
+    'Synthetic demo dataset ready: departments, location and laptop/monitor/mouse/keyboard. Existing seed items preserved; no accounts or passwords created.\n',
   );
 }
 async function main() {

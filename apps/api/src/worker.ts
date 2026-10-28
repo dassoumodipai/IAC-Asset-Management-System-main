@@ -29,9 +29,20 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
     return row;
   });
   if (!delivery) return false;
-  const [outbox] = await db.query('SELECT payload FROM notification_outbox WHERE id=$1', [
+  const [outbox] = await db.query('SELECT payload,template FROM notification_outbox WHERE id=$1', [
     delivery.outbox_id,
   ]);
+  if (['FINANCE_SUBMITTED','FINANCE_APPROVED','FINANCE_RETURNED'].includes(outbox.template)) {
+    const role = outbox.template === 'FINANCE_SUBMITTED' ? 'FINANCE' : 'ADMIN';
+    const [eligible] = await db.query(`SELECT 1 FROM users u JOIN user_roles r ON r.user_id=u.id WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND r.role_code=$2`, [delivery.recipient,role]);
+    if (!eligible) {
+      await db.tx(async c=>{
+        await db.query("UPDATE email_deliveries SET state='DEAD',last_error_code='RECIPIENT_INELIGIBLE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED'",[delivery.id,lease],c);
+        await db.audit(c,null,'EMAIL_DELIVERY',delivery.id,'EMAIL_RECIPIENT_INELIGIBLE',{template:outbox.template});
+      });
+      return true;
+    }
+  }
   let accepted = false,
     errorCode = 'SMTP_FAILURE',
     sentMessageId = `<${delivery.id}@iac.portal>`;

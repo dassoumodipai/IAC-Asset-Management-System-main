@@ -7,7 +7,7 @@ import { createApp } from '../src/main';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { FinanceService } from '../src/finance';
-import { configuration, hash, signedCsrf, token } from '../src/config';
+import { configuration, decrypt, hash, signedCsrf, token } from '../src/config';
 import type { AuthRequest } from '../src/security';
 const connection = process.env.TEST_DATABASE_URL;
 if (connection && !new URL(connection).pathname.endsWith('_test'))
@@ -123,6 +123,23 @@ describe(
     });
     after(async () => {
       await app?.close();
+    });
+    it('queues version-keyed Finance messages atomically with scoped recipients and minimal encrypted content',async()=>{
+      const a=await domain.createAsset(req(admin),{category:asset.category,assetType:asset.assetType,description:'Synthetic mail-loop asset',ownershipType:asset.ownershipType,status:'In Store',condition:asset.condition,riskLevel:asset.riskLevel,amcApplies:false});
+      const submit=()=>finance.submit(req(admin,a.version),a.id,{reason:'Private invoice reason must stay inside portal'});
+      await submit();
+      const events=()=>db.query("SELECT o.*,d.recipient FROM notification_outbox o LEFT JOIN email_deliveries d ON d.outbox_id=o.id WHERE o.event_key LIKE $1 ORDER BY o.event_key,d.recipient",[`finance:${a.id}:%`]);
+      let rows=await events();assert.ok(rows.some(r=>r.recipient===reviewer.email));assert.ok(rows.some(r=>r.recipient===second.email));assert.ok(!rows.some(r=>[admin.email,executive.email,employee.email,itAdmin.email].includes(r.recipient)));
+      const decoded=JSON.parse(decrypt(rows[0].payload.ciphertext,'AUTH_MAIL_ENCRYPTION_KEY'));assert.ok(decoded.text.includes('/finance/'+a.id));assert.ok(!JSON.stringify(decoded).includes('Private invoice reason'));assert.ok(!JSON.stringify(rows[0].payload).includes(a.assetCode));
+      const before=rows.length;await assert.rejects(submit);assert.equal((await events()).length,before);
+      let d=await finance.detail(req(reviewer),a.id);await finance.review(req(reviewer,d.financeVersion),a.id,{decision:'RETURN',reason:'Synthetic return reason'});
+      rows=await events();const returned=rows.filter(r=>r.template==='FINANCE_RETURNED');assert.equal(returned.length,1);assert.equal(returned[0].recipient,admin.email);
+      d=await finance.detail(req(admin),a.id);await finance.submit(req(admin,d.assetVersion),a.id,{reason:'Corrected synthetic record'});d=await finance.detail(req(reviewer),a.id);
+      await finance.review(req(reviewer,d.financeVersion),a.id,approval);rows=await events();assert.equal(rows.filter(r=>r.template==='FINANCE_APPROVED').length,1);
+      const approved=await finance.detail(req(admin),a.id);const count=(await db.query('SELECT count(*)::int n FROM asset_finance_events WHERE asset_id=$1',[a.id]))[0].n;
+      const original=db.notify.bind(db);db.notify=async()=>{throw Error('Synthetic queue failure');};
+      try{await assert.rejects(()=>finance.submit(req(admin,approved.assetVersion),a.id,{reason:'Atomic rollback check'}));}finally{db.notify=original;}
+      assert.equal((await finance.detail(req(admin),a.id)).state,'APPROVED');assert.equal((await db.query('SELECT count(*)::int n FROM asset_finance_events WHERE asset_id=$1',[a.id]))[0].n,count);
     });
     it('denies anonymous, employee, IT and executive queue access; executive cannot mutate', async () => {
       for (const u of [null, employee, itAdmin, executive])

@@ -35,7 +35,7 @@ npm run dev
 
 Keep the final terminal open. Setup generates private local secrets, and preserves an existing .env. Use a new extracted folder to avoid accidentally reusing an operational configuration. Do not paste .env, passwords, authenticator setup keys or recovery codes into chat or a recording. Never point the test/demo commands at company production data.
 
-Bootstrap asks for an email, display name and a new password of at least 12 characters in an interactive terminal. Password input is hidden. No email is sent by bootstrap. Synthetic seed creates only two unassigned items (laptop and monitor), departments and a location. Run it once; repeating it adds two more items.
+Bootstrap asks for an email, display name and a new password of at least 12 characters in an interactive terminal. Password input is hidden. No email is sent by bootstrap. Synthetic seed creates four unassigned items (laptop, monitor, mouse and keyboard), departments and a location. Repeating the seed preserves the existing synthetic items rather than adding duplicates.
 
 Open http://127.0.0.1:5173 on this same laptop. Always use 127.0.0.1, not localhost, because write requests validate the exact origin. Sign in using your new Admin account. Click Set up authenticator, add its setup key to your authenticator app as a time-based account, enter the current code, save recovery codes privately, then continue and accept the portal notice. After setup, take a minute to sign out and back in before presenting.
 
@@ -43,7 +43,7 @@ Open http://127.0.0.1:5173 on this same laptop. Always use 127.0.0.1, not localh
 
 In People & access, invite synthetic Employee and separate Finance/Executive accounts using distinct example.org addresses. Inspect their invitation messages in local Mailpit at http://127.0.0.1:18025. Mail goes only to this fake sink in the fresh generated configuration. Invitations start with Employee access. Select the synthetic account in People & access, add FINANCE or EXECUTIVE in the role controls with an explicit reason, then save. Each privileged account enrolls its own authenticator. Do not give the submitter the reviewer's account or bypass the independent reviewer check.
 
-Admin can create a mouse/keyboard in Asset catalog, select the synthetic employee in People & equipment, and assign each item explicitly. Finance review requires the Admin to submit an asset version before the separate Finance account approves or returns it. Executive totals include approved acquisition cost only, not depreciation or book value. Use separate browser profiles/private windows to avoid swapping the wrong session while presenting. The detailed walkthrough is in DEMO_HANDOFF_2026_10.md.
+Admin can use the seeded mouse/keyboard or create additional items in Asset catalog, select the synthetic employee in People & equipment, and assign each item explicitly. Finance review requires the Admin to submit an asset version before the separate Finance account approves or returns it. Executive totals include approved acquisition cost only, not depreciation or book value. Use separate browser profiles/private windows to avoid swapping the wrong session while presenting. The detailed walkthrough is in DEMO_HANDOFF_2026_10.md.
 
 No laptop-to-phone sharing is configured. A phone cannot open the laptop's 127.0.0.1 address. A hosted or network-accessible demo requires an approved environment and security setup; this delivery does not silently create one.
 

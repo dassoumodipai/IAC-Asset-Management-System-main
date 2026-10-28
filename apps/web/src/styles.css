@@ -4230,3 +4230,5 @@ input[type='checkbox']:focus-visible {
 /* Long names/emails must not expand person cards or hide their action. */
 .equipment-people-grid > *, .equipment-item-grid > * { min-width: 0; }
 .equipment-person-card .button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+
+@media(max-width:650px){.nav-scrim {position:fixed;inset:56px 0 0;background:#17222d66;border:0;z-index:29;cursor:pointer;} .sidebar.is-open{z-index:30;}}

@@ -74,3 +74,17 @@ test('role and viewport visual audit',async({page,context})=>{
  console.log(JSON.stringify(findings));
  expect(findings.filter(f=>f.overflow)).toEqual([]);
 });
+
+test('mobile navigation is keyboard-safe and Finance errors recover without stale content',async({page,context})=>{
+ await signIn(context,admin);await page.setViewportSize({width:390,height:844});await page.goto('/dashboard');
+ const toggle=page.getByRole('button',{name:'Toggle navigation'});const nav=page.locator('#mobile-nav');
+ await expect(nav).toHaveAttribute('inert','');await toggle.click();await expect(nav).not.toHaveAttribute('inert','');
+ await page.getByRole('link',{name:'People & access',exact:true}).focus();await page.keyboard.press('Escape');await expect(toggle).toBeFocused();await expect(nav).toHaveAttribute('inert','');
+ await toggle.click();await page.screenshot({path:'/downloads/iac-ui-audit/mobile-navigation-open.png'});await page.getByRole('button',{name:'Close navigation',exact:true}).click({position:{x:350,y:300}});await expect(toggle).toHaveAttribute('aria-expanded','false');
+ await signIn(context,finance);
+ await page.route('**/api/v1/finance/queue*',r=>r.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{code:'SERVICE_UNAVAILABLE',message:'Synthetic temporary data failure'}})}));
+ await page.goto('/finance');await expect(page.getByRole('alert')).toContainText('Synthetic temporary data failure');await expect(page.getByRole('heading',{name:'No matching records',exact:true})).toHaveCount(0);await page.screenshot({path:'/downloads/iac-ui-audit/finance-recoverable-error-mobile.png'});
+ await page.unroute('**/api/v1/finance/queue*');await page.getByRole('button',{name:'Reload data',exact:true}).click();await expect(page.getByRole('alert')).toHaveCount(0);
+ await page.getByLabel('Asset code or description').fill('no-such-synthetic-asset-'+tag);await expect(page.getByRole('heading',{name:'No matching records',exact:true})).toBeVisible();await page.screenshot({path:'/downloads/iac-ui-audit/finance-empty-mobile.png'});
+ await signIn(context,employee);await page.goto('/finance');await expect(page.getByRole('heading',{name:'Finance access required'})).toBeVisible();expect((await page.request.get('/api/v1/finance/queue')).status()).toBe(403);
+});
