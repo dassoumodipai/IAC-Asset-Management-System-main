@@ -76,3 +76,12 @@ test(
     }
   },
 );
+
+test('production proxy permits the API JSON envelope but preserves matching API routing', async () => {
+  const nginx = await readFile(new URL('../infra/nginx.conf', import.meta.url), 'utf8');
+  assert.match(nginx, /location \/api\/ \{[^}]*client_max_body_size 6m;/);
+  assert.match(nginx, /proxy_pass http:\/\/api:3000/);
+  const caddy = await readFile(new URL('../infra/Caddyfile', import.meta.url), 'utf8');
+  assert.match(caddy, /handle \/api\/\*/);
+  assert.match(caddy, /reverse_proxy api:3000/);
+});

@@ -62,9 +62,11 @@ class ApiExceptionFilter implements ExceptionFilter {
       status = 413;
       code = 'BODY_TOO_LARGE';
       message =
-        (error as any).limit > 64 * 1024
-          ? 'Request exceeds the 1.5 MB limit'
-          : 'Request exceeds the 64 KB limit';
+        (error as any).limit >= 6 * 1024 * 1024
+          ? 'Request exceeds the 6 MB JSON upload limit'
+          : (error as any).limit > 64 * 1024
+            ? 'Request exceeds the 1.5 MB limit'
+            : 'Request exceeds the 64 KB limit';
     } else if ((error as any)?.type === 'entity.parse.failed') {
       status = 400;
       code = 'BAD_REQUEST';
@@ -144,7 +146,9 @@ export async function createApp(): Promise<INestApplication> {
     req.method === 'POST' &&
     /^\/[^/]+\/invoices$/.test(req.path) &&
     isAllowedAppOrigin(req.headers.origin || '') &&
-    (req.headers.cookie || '').includes(configuration().sessionCookie + '=')
+    (req.headers.cookie || '')
+      .split(';')
+      .some((c) => c.trim().startsWith(`${configuration().sessionCookie}=`))
       ? json({ limit: '6mb' })(req, res, next)
       : next(),
   );
