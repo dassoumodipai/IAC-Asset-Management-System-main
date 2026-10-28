@@ -394,7 +394,8 @@ await page.goto(`/assets/${assetId}/edit`);
     await page.getByRole('button', { name: 'Asset statuses', exact: true }).click();
     await expect(page.getByRole('button', { name: /^Add / })).toHaveCount(0);
     await page.getByRole('button', { name: 'Departments', exact: true }).click();
-    await page.screenshot({ path: 'test-results/master-control-desktop.png', fullPage: true });
+    // Capture the visible control surface, not an unbounded accumulated fixture list.
+    await page.screenshot({ path: 'test-results/master-control-desktop.png' });
     await page.setViewportSize({ width: 390, height: 844 });
     const layout = await page.evaluate(() => ({
       width: document.documentElement.scrollWidth,
@@ -412,7 +413,7 @@ await page.goto(`/assets/${assetId}/edit`);
         .slice(0, 40),
     }));
     expect(layout.width, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport);
-    await page.screenshot({ path: 'test-results/master-control-mobile.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/master-control-mobile.png' });
   } finally {
     await context.close();
   }
