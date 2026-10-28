@@ -326,6 +326,49 @@ describe(
       assert.match(summary.body.definitions.approvedAcquisitionCost, /Not net book value/);
       assert.ok(!JSON.stringify(summary.body).includes(employee.email));
     });
+    it('combines department and asset-type filters across stable queue pages', async () => {
+      const [{ id: departmentId }] = await db.query(
+        'INSERT INTO departments(code,name) VALUES($1,$1) RETURNING id',
+        [`queue-${randomUUID()}`],
+      );
+      const ids = await db.query(
+        `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,department_id,created_by)
+        SELECT 'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware',CASE WHEN i<=4 THEN 'Laptop' ELSE 'Mouse' END,'Synthetic filtered queue','Owned','In Store','Good','Low',$1,$2 FROM generate_series(1,6)i RETURNING id,asset_code`,
+        [departmentId, admin.id],
+      );
+      const options = await call(reviewer, '/finance/filter-options');
+      assert.equal(options.status, 200);
+      assert.ok(options.body.values.some((v: any) => v.code === 'Mouse'));
+      assert.ok(options.body.departments.some((d: any) => d.id === departmentId));
+      for (const u of [employee, itAdmin, executive])
+        assert.equal((await call(u, '/finance/filter-options')).status, 403);
+      const prefix = `/finance/queue?state=UNSUBMITTED&departmentId=${departmentId}&assetType=Laptop&limit=2`;
+      const first = await call(reviewer, prefix);
+      assert.equal(first.status, 200);
+      assert.equal(first.body.items.length, 2);
+      assert.ok(first.body.nextCursor);
+      const secondPage = await call(reviewer, prefix + '&after=' + first.body.nextCursor);
+      assert.equal(secondPage.body.items.length, 2);
+      assert.equal(secondPage.body.nextCursor, null);
+      assert.deepEqual(
+        [...first.body.items, ...secondPage.body.items].map((a: any) => a.id),
+        ids.slice(0, 4).map((a) => a.id),
+      );
+      for (const a of first.body.items) {
+        assert.equal(a.departmentId, departmentId);
+        assert.equal(a.assetType, 'Laptop');
+      }
+      assert.equal((await call(reviewer, '/finance/queue?departmentId=bad')).status, 422);
+      assert.equal(
+        (await call(reviewer, '/finance/queue?assetType=' + encodeURIComponent('x'.repeat(101))))
+          .status,
+        422,
+      );
+      for (const u of [employee, itAdmin, executive])
+        assert.equal((await call(u, prefix)).status, 403);
+      await db.query('UPDATE departments SET active=false WHERE id=$1', [departmentId]);
+      assert.equal((await call(admin, prefix)).body.items.length, 2);
+    });
     it('handles concurrent role-isolated HTTP reads while Finance evidence remains unchanged', async () => {
       const before = await finance.detail(req(admin), asset.id);
       const requests = Array.from({ length: 40 }, (_, i) =>

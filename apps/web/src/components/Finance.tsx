@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api, queryString } from '../api';
+import type { References } from '../types';
 import { useAction } from '../hooks';
 import { hasRole, useSession } from '../session';
 import { Empty, ErrorNotice, Field, Loading, Metric, PageTitle, Panel } from './ui';
@@ -11,6 +12,8 @@ interface FinanceAsset {
   assetCode: string;
   description: string;
   assetType: string;
+  departmentId?: string | null;
+  department?: string | null;
   assetVersion: number;
   financeVersion: number | null;
   state: string | null;
@@ -42,14 +45,29 @@ const date = (value: string | null) =>
 export function FinanceQueue() {
   const { user } = useSession();
   const [state, setState] = useState('SUBMITTED'),
-    [q, setQ] = useState('');
+    [q, setQ] = useState(''),
+    [departmentId, setDepartmentId] = useState(''),
+    [assetType, setAssetType] = useState('');
+  const allowed = hasRole(user, 'ADMIN') || hasRole(user, 'FINANCE');
+  const references = useQuery({
+    queryKey: ['finance-references'],
+    enabled: allowed,
+    queryFn: ({ signal }) => api<References>('/finance/filter-options', { signal }),
+  });
   const query = useInfiniteQuery({
-    queryKey: ['finance-queue', state, q],
+    queryKey: ['finance-queue', state, q, departmentId, assetType],
     enabled: hasRole(user, 'ADMIN') || hasRole(user, 'FINANCE'),
     initialPageParam: '',
     queryFn: ({ pageParam, signal }) =>
       api<{ items: FinanceAsset[]; nextCursor: string | null }>(
-        '/finance/queue' + queryString({ state, q: q || undefined, after: pageParam || undefined }),
+        '/finance/queue' +
+          queryString({
+            state,
+            q: q || undefined,
+            departmentId: departmentId || undefined,
+            assetType: assetType || undefined,
+            after: pageParam || undefined,
+          }),
         { signal },
       ),
     getNextPageParam: (p) => p.nextCursor ?? undefined,
@@ -96,7 +114,42 @@ export function FinanceQueue() {
               maxLength={100}
             />
           </Field>
+          <Field label="Department" htmlFor="finance-department">
+            <select
+              id="finance-department"
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+              disabled={references.isPending}
+            >
+              <option value="">All departments</option>
+              {references.data?.departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                  {d.active ? '' : ' (inactive)'}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Asset type" htmlFor="finance-asset-type">
+            <select
+              id="finance-asset-type"
+              value={assetType}
+              onChange={(e) => setAssetType(e.target.value)}
+              disabled={references.isPending}
+            >
+              <option value="">All asset types</option>
+              {references.data?.values
+                .filter((v) => v.kind === 'ASSET_TYPE')
+                .map((v) => (
+                  <option key={v.code} value={v.code}>
+                    {v.label}
+                    {v.active ? '' : ' (inactive)'}
+                  </option>
+                ))}
+            </select>
+          </Field>
         </div>
+        <ErrorNotice error={references.error} retry={() => void references.refetch()} />
         <ErrorNotice error={query.error} retry={() => void query.refetch()} />
         {query.isPending ? (
           <Loading />
@@ -119,6 +172,9 @@ export function FinanceQueue() {
                     <td data-label="Asset">
                       <strong>{a.assetCode}</strong>
                       <p>{a.description}</p>
+                      <small>
+                        {a.department ?? 'No department'} · {a.assetType}
+                      </small>
                     </td>
                     <td data-label="Review state">
                       <span className={`finance-status ${a.state?.toLowerCase() ?? 'new'}`}>
@@ -140,7 +196,8 @@ export function FinanceQueue() {
           </div>
         ) : (
           <Empty title="No matching records">
-            Choose another state or search. No records have been hidden by a row limit.
+            Choose another state, department, asset type or search. No records have been hidden by a
+            row limit.
           </Empty>
         )}
         {query.hasNextPage ? (

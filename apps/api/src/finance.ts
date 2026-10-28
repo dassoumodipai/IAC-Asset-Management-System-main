@@ -50,6 +50,8 @@ const queueInput = z
   .object({
     state: z.enum(['ALL', 'UNSUBMITTED', 'SUBMITTED', 'RETURNED', 'APPROVED']).default('SUBMITTED'),
     q: z.string().trim().max(100).optional(),
+    departmentId: z.string().uuid().optional(),
+    assetType: z.string().trim().min(1).max(100).optional(),
     after: z.string().max(100).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
@@ -57,6 +59,17 @@ const queueInput = z
 @Injectable()
 export class FinanceService {
   constructor(@Inject(Db) private readonly db: Db) {}
+  async filterOptions(req: AuthRequest) {
+    requireRole(req, 'ADMIN', 'FINANCE');
+    const [departments, values] = await Promise.all([
+      this.db.query('SELECT id,name,active FROM departments ORDER BY name,id'),
+      this.db
+        .query(`SELECT 'ASSET_TYPE' AS kind,t.code,coalesce(r.label,t.code) AS label,coalesce(r.active,false) AS active FROM
+        (SELECT code FROM reference_values WHERE kind='ASSET_TYPE' UNION SELECT DISTINCT asset_type AS code FROM assets WHERE asset_type IS NOT NULL) t
+        LEFT JOIN reference_values r ON r.kind='ASSET_TYPE' AND r.code=t.code ORDER BY coalesce(r.label,t.code),t.code`),
+    ]);
+    return { departments, values };
+  }
   async queue(req: AuthRequest, query: unknown) {
     requireRole(req, 'ADMIN', 'FINANCE');
     const p = queueInput.parse(query),
@@ -73,16 +86,25 @@ export class FinanceService {
         `(strpos(lower(a.asset_code),lower($${values.length}))>0 OR strpos(lower(a.description),lower($${values.length}))>0)`,
       );
     }
+    for (const [key, column] of [
+      ['departmentId', 'department_id'],
+      ['assetType', 'asset_type'],
+    ] as const) {
+      if (p[key]) {
+        values.push(p[key]);
+        where.push(`a.${column}=$${values.length}`);
+      }
+    }
     if (p.after) {
       values.push(p.after);
       where.push(`a.asset_code>$${values.length}`);
     }
     values.push(p.limit + 1);
     const rows = await this.db.query(
-      `SELECT a.id,a.asset_code,a.description,a.asset_type,a.version AS asset_version,a.purchase_cost,a.purchase_date,a.invoice_number,a.supplier,a.finance_pending,
+      `SELECT a.id,a.asset_code,a.description,a.asset_type,a.department_id,d.name AS department,a.version AS asset_version,a.purchase_cost,a.purchase_date,a.invoice_number,a.supplier,a.finance_pending,
       f.state,f.version AS finance_version,f.submitted_at,f.review_reason,f.approved_cost,f.approved_at,
       submitter.display_name AS submitted_by_name
-      FROM assets a LEFT JOIN asset_finance f ON f.asset_id=a.id LEFT JOIN users submitter ON submitter.id=f.submitted_by
+      FROM assets a LEFT JOIN departments d ON d.id=a.department_id LEFT JOIN asset_finance f ON f.asset_id=a.id LEFT JOIN users submitter ON submitter.id=f.submitted_by
       ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY a.asset_code LIMIT $${values.length}`,
       values,
     );
@@ -299,6 +321,9 @@ export class FinanceService {
 @UseGuards(SessionGuard)
 export class FinanceController {
   constructor(@Inject(FinanceService) private readonly service: FinanceService) {}
+  @Get('filter-options') filterOptions(@Req() req: AuthRequest) {
+    return this.service.filterOptions(req);
+  }
   @Get('queue') queue(@Req() req: AuthRequest, @Query() q: unknown) {
     return this.service.queue(req, q);
   }

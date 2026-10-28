@@ -185,6 +185,33 @@ test('Finance history reaches older evidence through the real paginated API', as
     .scrollIntoViewIfNeeded();
   await page.screenshot({ path: '/downloads/iac-finance-history-paging-desktop.png' });
 });
+test('Finance queue combines master-data filters and loads subsequent pages', async ({
+  page,
+  context,
+}) => {
+  await pool.query(
+    `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,department_id,created_by)
+    SELECT 'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware',CASE WHEN i<=28 THEN 'Laptop' ELSE 'Monitor' END,$1,'Owned','In Store','Good','Low',$2,$3 FROM generate_series(1,30)i`,
+    [`${tag} filter fixture`, department, admin.id],
+  );
+  await signIn(context, finance);
+  await page.goto('/finance');
+  await page.getByLabel('Asset code or description').fill(`${tag} filter fixture`);
+  await page.getByLabel('Review state').selectOption('UNSUBMITTED');
+  await expect(page.locator('#finance-department option').filter({ hasText: tag })).toHaveCount(1);
+  await page.getByLabel('Department', { exact: true }).selectOption({ label: tag });
+  await page.getByLabel('Asset type', { exact: true }).selectOption('Laptop');
+  await expect(page.getByRole('link', { name: /^Review IAC/ })).toHaveCount(25);
+  await page.getByRole('button', { name: 'Load more records', exact: true }).click();
+  await expect(page.getByRole('link', { name: /^Review IAC/ })).toHaveCount(28);
+  await expect(page.getByRole('button', { name: 'Load more records', exact: true })).toHaveCount(0);
+  await page.getByLabel('Asset type', { exact: true }).selectOption('Monitor');
+  await expect(page.getByRole('link', { name: /^Review IAC/ })).toHaveCount(2);
+  await page.screenshot({ path: '/downloads/iac-finance-filters-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '/downloads/iac-finance-filters-mobile.png' });
+});
 test('Finance mobile queue, errors and server unread history remain usable', async ({
   page,
   context,
