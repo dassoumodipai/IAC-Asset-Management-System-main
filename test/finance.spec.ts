@@ -319,7 +319,7 @@ test('Admin delivery health shows retry evidence without message content and den
   }
   await expect(card).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: '/downloads/iac-delivery-health-mobile.png', fullPage: true });
+  await card.screenshot({ path: '/downloads/iac-delivery-health-mobile.png' });
   await signIn(context, finance);
   await page.goto('/admin/deliveries');
   await expect(
@@ -671,4 +671,83 @@ test('workflow inbox links Finance requests, keeps read state and does not expos
   await signIn(context, executive);
   await page.goto('/notifications');
   await expect(page.getByRole('heading', { name: notice.title, exact: true })).toHaveCount(0);
+});
+
+test('camera scanner decodes generated QR pixels through simulated video stream and opens live asset', async ({
+  page,
+  context,
+}) => {
+  await page.addInitScript(() => {
+    (window as any).__iacHoldQrPixels = true;
+  });
+  const QRCode = await import('qrcode');
+  const id = randomUUID();
+  const [asset] = (
+    await pool.query(
+      `INSERT INTO assets(id,asset_code,category,asset_type,description,manufacturer,model,ownership_type,status,condition,risk_level,created_by)VALUES($1,'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Dell Latitude 5450','Dell','Latitude 5450','Owned','In Store','Good','Low',$2)RETURNING asset_code`,
+      [id, admin.id],
+    )
+  ).rows;
+  const encoded = await QRCode.toDataURL(`${origin}/a/${asset.asset_code}`, {
+    width: 400,
+    margin: 4,
+    errorCorrectionLevel: 'M',
+  });
+  await page.addInitScript(
+    ({ data }) => {
+      const media = navigator.mediaDevices;
+      Object.defineProperty(media, 'enumerateDevices', {
+        value: async () => [
+          {
+            kind: 'videoinput',
+            deviceId: 'simulated-qr',
+            label: 'Simulated QR video',
+            groupId: 'qr',
+          },
+        ],
+      });
+      Object.defineProperty(media, 'getUserMedia', {
+        value: async () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 800;
+          canvas.height = 800;
+          const c = canvas.getContext('2d')!;
+          c.fillStyle = 'white';
+          c.fillRect(0, 0, 800, 800);
+          const image = new Image();
+          image.src = data;
+          await image.decode();
+          const stream = canvas.captureStream(10);
+          let frames = 0;
+          setInterval(() => {
+            c.fillStyle = 'white';
+            c.fillRect(0, 0, 800, 800);
+            if (++frames > 20 && !(window as any).__iacHoldQrPixels)
+              c.drawImage(image, 200, 200, 400, 400);
+          }, 100);
+          return stream;
+        },
+      });
+    },
+    { data: encoded },
+  );
+  await signIn(context, employee);
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: 'Open camera scanner', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Scan asset label' })).toBeVisible();
+  await expect.poll(() => page.locator('video').evaluate((v) => v.readyState)).toBeGreaterThan(1);
+  const dialog = page.getByRole('dialog', { name: 'Scan asset label' });
+  expect(await dialog.boundingBox()).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await dialog.boundingBox()).toEqual({ x: 0, y: 0, width: 390, height: 844 });
+  await page.screenshot({ path: '/downloads/iac-scanner-mobile.png' });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.screenshot({ path: '/downloads/iac-simulated-qr-camera.png' });
+  await page.evaluate(() => {
+    (window as any).__iacHoldQrPixels = false;
+  });
+  await expect(page).toHaveURL(new RegExp(`/a/${asset.asset_code}$`), { timeout: 15000 });
+  await expect(page.getByRole('heading', { name: asset.asset_code, exact: true })).toBeVisible();
+  await expect(page.getByText('Dell Latitude 5450', { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: '/downloads/iac-simulated-qr-result.png', fullPage: true });
 });

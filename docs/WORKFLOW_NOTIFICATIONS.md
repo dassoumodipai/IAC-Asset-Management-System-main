@@ -15,3 +15,7 @@ Inbox visibility is bound to its original user ID and rechecks current active/ve
 ## Limits and operations gates
 
 No historical notifications are backfilled from old email. New workflow records are append-only; read receipts are personal state and not exposed to other users. The interface refreshes when focused and at a one-minute interval, not instant push. Broadcast/expiry policies, retention, digest preferences, notification volume and real provider setup need operational decisions. This does not configure Gmail, change SMTP transport, or guarantee real-world inbox delivery. Local Mailpit evidence must be labeled local test delivery.
+
+## Related scanner verification
+
+The camera scanner is a full-viewport body-level dialog, independent of the page header's stacking context. A live browser regression generates a QR, supplies its pixels through a simulated video MediaStream, runs the real QR decoder and opens the server-backed asset scan page. It does not call the development decoded-result hook. Physical camera, printed-label conditions and mobile hardware are still unverified. A simulated camera in a walkthrough must be identified as simulated, not represented as a real phone scan.

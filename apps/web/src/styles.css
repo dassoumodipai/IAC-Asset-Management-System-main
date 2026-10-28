@@ -4232,3 +4232,65 @@ input[type='checkbox']:focus-visible {
 .equipment-person-card .button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
 
 @media(max-width:650px){.nav-scrim {position:fixed;inset:56px 0 0;background:#17222d66;border:0;z-index:29;cursor:pointer;} .sidebar.is-open{z-index:30;}}
+
+.camera-scanner-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #fff;
+}
+.camera-scanner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+.camera-scanner-video {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.camera-scanner-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.camera-scanner-error,
+.camera-scanner-notice {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 12px;
+  color: white;
+}
+.camera-scanner-error {
+  top: 0;
+}
+.camera-scanner-notice {
+  bottom: 0;
+  text-align: center;
+}
+.camera-scanner-form {
+  display: flex;
+  gap: 8px;
+  background: white;
+  padding: 12px;
+  color: #17232d;
+}
+.camera-scanner-input {
+  min-width: 0;
+  min-height: 44px;
+  flex: 1;
+  border: 1px solid #d7dfe6;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+.camera-scanner-dialog {width:100vw;height:100dvh;}
+
+html.camera-scanner-open {overflow:hidden;scrollbar-gutter:auto;}
