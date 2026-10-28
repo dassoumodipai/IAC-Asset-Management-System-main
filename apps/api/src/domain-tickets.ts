@@ -63,9 +63,25 @@ export class TicketDomain extends AssetDomain {
     return camel(row);
   }
   async tickets(req: AuthRequest, query: any) {
-    const p = requestPage(query, ['created_at', 'id']);
+    const { ownership: requestedOwnership, ...filters } = query;
+    const ownership = z
+      .enum(['ANY', 'MINE', 'UNASSIGNED'])
+      .default('ANY')
+      .parse(requestedOwnership);
+    const p = requestPage(filters, ['created_at', 'id']);
+    if (ownership !== 'ANY' && p.ownerId)
+      throw new UnprocessableEntityException('Choose ownership or ownerId, not both');
     const values: any[] = [];
     const where = [ticketScope(req.user, values)];
+    if (ownership !== 'ANY') {
+      if (!staff(req.user))
+        throw new ForbiddenException('Team ownership filters require support access');
+      if (ownership === 'UNASSIGNED') where.push('t.owner_id IS NULL');
+      else {
+        values.push(req.user.id);
+        where.push(`t.owner_id=$${values.length}`);
+      }
+    }
     for (const [key, col] of [
       ['status', 'status'],
       ['category', 'category'],

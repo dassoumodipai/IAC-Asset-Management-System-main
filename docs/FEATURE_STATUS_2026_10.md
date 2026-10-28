@@ -29,3 +29,5 @@ Checkpoint 28 October 2026, 21:40 IST. Local tested source is ahead of the parti
 At the 22:26 checkpoint, 102 integration, 27 API unit, 62 web unit and 33 Chrome browser tests passed, plus lint/typecheck/production build. These counts certify only their exercised cases. They do not turn missing roadmap modules into working features or prove unlimited scale.
 
 Latest flexibility addition: Finance queue department/asset-type filters are connected to server paging and historical master/inventory options. It does not add configurable approval routes or custom-field schemas. Finance API regression suite and5Financebrowser tests pass; decisive full regression will be repeated at the delivery checkpoint.
+
+Support triage now exposes category/search and team ownership views (Any/Mine/Unassigned), with scoped exports and paging. This is queue flexibility, not automated assignment/escalation or configurable SLA policy.

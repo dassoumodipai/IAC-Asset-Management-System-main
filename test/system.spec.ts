@@ -419,6 +419,28 @@ await page.goto(`/assets/${assetId}/edit`);
   }
 });
 
+test('support triage filters ownership, category and search without exposing team controls to employees',async({browser})=>{
+ const tag=`triage-${suffix}`;
+ for(let i=0;i<28;i++)await pool.query("INSERT INTO tickets(reporter_id,owner_id,subject,description,category,priority) VALUES($1,$2,$3,'Synthetic triage browser','HARDWARE','HIGH')",[ids.other,i<26?null:ids.admin,tag]);
+ const context=await browser.newContext({storageState:await admin.storageState()});
+ try {
+ const page=await context.newPage();await page.goto('/tickets');
+ await page.getByLabel('Search subject or ticket number').fill(tag);
+ await page.getByLabel('Ownership',{exact:true}).selectOption('UNASSIGNED');
+ await expect(page.locator('tbody tr')).toHaveCount(25);
+ await page.getByRole('button',{name:/Load more/}).click();
+ await expect(page.locator('tbody tr')).toHaveCount(26);
+ await page.getByLabel('Ownership',{exact:true}).selectOption('MINE');
+ await expect(page.locator('tbody tr')).toHaveCount(2);
+ await page.screenshot({path:'/downloads/iac-ticket-triage-desktop.png'});
+ await page.setViewportSize({width:390,height:844});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:'/downloads/iac-ticket-triage-mobile.png'});
+ const result=await page.request.get('/api/v1/tickets?ownership=UNASSIGNED&q='+tag);expect(result.status()).toBe(200);expect((await result.json()).items.length).toBe(25);
+ }finally{await context.close();}
+ const own=await browser.newContext({storageState:await other.storageState()});
+ try{const page=await own.newPage();await page.goto('/tickets');await expect(page.getByLabel('Ownership',{exact:true})).toHaveCount(0);expect((await page.request.get('/api/v1/tickets?ownership=UNASSIGNED')).status()).toBe(403);}finally{await own.close();}
+});
 test('Master Control rejects Employee access through browser and API', async ({ browser }) => {
   expect((await other.get('/api/v1/master-data')).status()).toBe(403);
   const denied = await write(other, csrfOther, '/master-data/departments', {

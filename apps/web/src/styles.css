@@ -4223,3 +4223,6 @@ input[type='checkbox']:focus-visible {
 .equipment-person-card h2,.equipment-item-card h2 { font-size:18px;margin:0 0 8px; }
 .equipment-item-card { margin:0; }
 @media(max-width:760px) { .equipment-people-grid,.equipment-item-grid { grid-template-columns:1fr; } }
+
+.ticket-triage-filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; align-items:end; }
+@media(max-width:760px){.ticket-triage-filters {grid-template-columns:repeat(2,minmax(0,1fr));}}
