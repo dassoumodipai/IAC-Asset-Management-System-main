@@ -4226,3 +4226,7 @@ input[type='checkbox']:focus-visible {
 
 .ticket-triage-filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; align-items:end; }
 @media(max-width:760px){.ticket-triage-filters {grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+/* Long names/emails must not expand person cards or hide their action. */
+.equipment-people-grid > *, .equipment-item-grid > * { min-width: 0; }
+.equipment-person-card .button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
