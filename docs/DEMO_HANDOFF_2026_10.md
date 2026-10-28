@@ -85,3 +85,5 @@ Compiled-runtime smoke: in a separate clean directory, production-only `npm ci -
 This is a short correctness/latency probe, not sustained production capacity or an SLA. It excludes writes, files, imports, WAN latency, real users and SMTP. The script requires local test-owner CREATE DATABASE rights and deletes its disposable database. Do not run it against production or while sharing scarce resources with a live service.
 
 Executive warranty due-window uses the organization date in Asia/Kolkata, matching existing Admin reports rather than the database server timezone. Regression compares the report to the explicit organization-date predicate.
+
+Restricted HTTP checkpoint: `node scripts/load-probe.mjs --runtime-role` applies grants in its disposable database and forces each API connection into iac_runtime. It verifies `current_user`, completes one real HTTP Finance approval with audit/history, then runs the mixed-read probe. The observed2410requests had0unexpected payloads/status/errors. This uses the test owner connection with PostgreSQL role-switch options, not a separately provisioned production login/TLS route, and covers only exercised paths.

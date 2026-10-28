@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID, createHash, createHmac } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { performance } from 'node:perf_hooks';
+import { readFile } from 'node:fs/promises';
 const require = createRequire(import.meta.url);
 config({ quiet: true });
 const source = new URL(process.env.TEST_DATABASE_URL || 'invalid:');
@@ -79,10 +80,52 @@ try {
     [registrar.id],
   );
   await pool.query('ANALYZE');
+  const restricted = process.argv.includes('--runtime-role');
+  if (restricted) {
+    await pool.query(
+      await readFile(new URL('../infra/runtime-grants.sql', import.meta.url), 'utf8'),
+    );
+    const runtimeUrl = new URL(target);
+    runtimeUrl.searchParams.set('options', '-c role=iac_runtime');
+    process.env.DATABASE_URL = runtimeUrl.toString();
+  }
   const { createApp } = require('../apps/api/dist/main.js');
   app = await createApp();
   await app.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${app.getHttpServer().address().port}/api/v1`;
+  if (restricted) {
+    const { Db } = require('../apps/api/dist/db.js');
+    const runtime = app.get(Db);
+    const [role] = await runtime.query('SELECT current_user AS name');
+    if (role.name !== 'iac_runtime') throw new Error('API did not enter restricted runtime role');
+    const response = await fetch(base + `/finance/assets/${assets[0].id}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: process.env.APP_ORIGIN || 'http://127.0.0.1:5173',
+        Cookie: `iac_dev_session=${finance.session}; iac_dev_csrf=${finance.csrf}`,
+        'X-CSRF-Token': finance.csrf,
+        'If-Match': '"1"',
+      },
+      body: JSON.stringify({
+        decision: 'APPROVE',
+        reason: 'Synthetic restricted HTTP review',
+        purchaseCost: '1234.50',
+        purchaseDate: '2026-01-05',
+        invoiceNumber: 'SYNTHETIC-ROLE-1',
+        supplier: 'Synthetic Supplier',
+      }),
+    });
+    const body = await response.json();
+    if (response.status !== 201 || body.state !== 'APPROVED')
+      throw new Error('Restricted HTTP Finance approval failed');
+    const [evidence] = (
+      await pool.query('SELECT count(*)::int AS n FROM asset_finance_events WHERE asset_id=$1', [
+        assets[0].id,
+      ])
+    ).rows;
+    if (evidence.n !== 2) throw new Error('Restricted HTTP approval evidence missing');
+  }
   const cases = [
     [registrar, '/assets?limit=25', 200],
     [registrar, '/assets?q=25000&limit=25', 200],
@@ -116,9 +159,10 @@ try {
           let valid = r.status === expected;
           if (valid && expected === 200) {
             if (path.includes('executive-summary'))
-              valid = body.totalAssets === 50000 && body.pendingReviews === 1000;
+              valid =
+                body.totalAssets === 50000 && body.pendingReviews === (restricted ? 999 : 1000);
             else if (path.endsWith('/history'))
-              valid = Array.isArray(body.items) && body.items.length === 1;
+              valid = Array.isArray(body.items) && body.items.length === (restricted ? 2 : 1);
             else
               valid = Array.isArray(body.items) && body.items.length > 0 && body.items.length <= 25;
           }
@@ -145,12 +189,14 @@ try {
   const errorCount = results.reduce((s, r) => s + r.errors, 0);
   const evidence = (await pool.query('SELECT count(*)::int AS n FROM asset_finance_events')).rows[0]
     .n;
-  if (evidence !== 1000) throw new Error('Read-only workload changed Finance evidence');
+  if (evidence !== (restricted ? 1001 : 1000))
+    throw new Error('Read-only workload changed Finance evidence');
   console.log(
     JSON.stringify(
       {
+        restrictedRuntimeRole: restricted,
         scope:
-          '20 concurrent local HTTP readers over50000synthetic assets and1000submitted Finance records; no mutation workload, files, production traffic or SMTP',
+          '20 concurrent local HTTP readers over50000synthetic assets and1000Finance records; optional restricted-role run first performs one synthetic Finance approval; no concurrent mutation workload, files, production traffic or SMTP',
         durationMs: elapsed,
         totalRequests: counter,
         errorCount,
