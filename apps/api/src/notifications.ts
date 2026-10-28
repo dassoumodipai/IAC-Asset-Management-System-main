@@ -134,7 +134,7 @@ export class NotificationsService {
     const [rows, counts] = await Promise.all([
       this.db.query(
         `SELECT n.id,n.title,n.message,n.path,n.audience,d.name AS department_name,
-                n.created_at,(r.read_at IS NOT NULL) AS is_read,
+                n.created_at,to_char(n.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time,(r.read_at IS NOT NULL) AS is_read,
                 n.attachment_name,n.attachment_type,octet_length(n.attachment_content) AS attachment_size
          FROM in_app_announcements n
          JOIN users u ON u.id=$1
@@ -172,7 +172,7 @@ export class NotificationsService {
         rows.length > input.limit
           ? Buffer.from(
               JSON.stringify({
-                createdAt: new Date(rows[input.limit - 1].created_at).toISOString(),
+                createdAt: rows[input.limit - 1].cursor_time,
                 id: rows[input.limit - 1].id,
               }),
             ).toString('base64url')

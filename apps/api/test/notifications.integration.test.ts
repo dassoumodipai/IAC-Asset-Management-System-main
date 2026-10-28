@@ -109,6 +109,24 @@ describe(
         ),
       );
     });
+    it('announcement cursors retain PostgreSQL microseconds within one millisecond', async () => {
+      const expected: string[] = [];
+      for (let i = 1; i <= 5; i++) {
+        const [row] = await db.query(
+          "INSERT INTO in_app_announcements(title,message,path,audience,department_id,created_at)VALUES($1,'Precision check','/notifications','DEPARTMENT',$2,'2030-01-01 00:00:00.123000+00'::timestamptz+$3*interval '1 microsecond')RETURNING id",
+          [`${tag}-precision-${i}`, department, i],
+        );
+        expected.unshift(row.id);
+      }
+      let cursor: string | undefined;
+      const seen: string[] = [];
+      do {
+        const page = await service.inbox(req(user), { limit: 2, ...(cursor ? { cursor } : {}) });
+        seen.push(...page.items.filter((x: any) => expected.includes(x.id)).map((x: any) => x.id));
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor);
+      assert.deepEqual(seen, expected);
+    });
     it('validates cursors/limits and supports idempotent read/read-all', async () => {
       await assert.rejects(service.inbox(req(user), { cursor: 'garbage' }));
       await assert.rejects(service.inbox(req(user), { limit: 101 }));
