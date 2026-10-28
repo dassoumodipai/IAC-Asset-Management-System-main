@@ -106,6 +106,40 @@ export class FinanceService {
     );
     return { ...camel(row), history: history.map(camel) };
   }
+  async history(req: AuthRequest, value: string, query: unknown) {
+    requireRole(req, 'ADMIN', 'FINANCE');
+    const id = z.string().uuid().parse(value);
+    const p = z
+      .object({
+        before: z.string().uuid().optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(25),
+      })
+      .strict()
+      .parse(query);
+    const [asset] = await this.db.query('SELECT id FROM assets WHERE id=$1', [id]);
+    if (!asset) throw new NotFoundException('Asset not found');
+    const values: any[] = [id];
+    let boundary = '';
+    if (p.before) {
+      const [cursor] = await this.db.query(
+        'SELECT occurred_at,id FROM asset_finance_events WHERE asset_id=$1 AND id=$2',
+        [id, p.before],
+      );
+      if (!cursor) throw new NotFoundException('Finance history cursor not found for this asset');
+      values.push(cursor.id);
+      boundary =
+        'AND (e.occurred_at,e.id)<(SELECT occurred_at,id FROM asset_finance_events WHERE asset_id=$1 AND id=$2::uuid)';
+    }
+    values.push(p.limit + 1);
+    const rows = await this.db.query(
+      `SELECT e.id,e.action,e.reason,e.finance_version,e.details,e.occurred_at,u.display_name AS actor FROM asset_finance_events e JOIN users u ON u.id=e.actor_id WHERE e.asset_id=$1 ${boundary} ORDER BY e.occurred_at DESC,e.id DESC LIMIT $${values.length}`,
+      values,
+    );
+    return {
+      items: rows.slice(0, p.limit).map(camel),
+      nextCursor: rows.length > p.limit ? rows[p.limit - 1].id : null,
+    };
+  }
   async submit(req: AuthRequest, value: string, body: unknown) {
     requireRole(req, 'ADMIN');
     const id = z.string().uuid().parse(value),
@@ -270,6 +304,13 @@ export class FinanceController {
   }
   @Get('assets/:id') detail(@Req() req: AuthRequest, @Param('id') id: string) {
     return this.service.detail(req, id);
+  }
+  @Get('assets/:id/history') history(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Query() q: unknown,
+  ) {
+    return this.service.history(req, id, q);
   }
   @Post('assets/:id/submit') submit(
     @Req() req: AuthRequest,

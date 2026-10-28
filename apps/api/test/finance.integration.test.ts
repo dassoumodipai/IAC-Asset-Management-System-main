@@ -344,6 +344,49 @@ describe(
       assert.equal(after.assetVersion, before.assetVersion);
       assert.deepEqual(after.history, before.history);
     });
+    it('pages full Finance evidence with tied microsecond timestamps and asset-scoped cursors', async () => {
+      await db.query(
+        `INSERT INTO asset_finance_events(asset_id,action,actor_id,reason,finance_version,occurred_at)
+        SELECT $1,'SUBMITTED',$2,'Synthetic old history '||i,i,'2010-01-01 00:00:00.123456+00'::timestamptz
+        FROM generate_series(1,57) i`,
+        [asset.id, admin.id],
+      );
+      const expected = await db.query(
+        'SELECT id FROM asset_finance_events WHERE asset_id=$1 ORDER BY occurred_at DESC,id DESC',
+        [asset.id],
+      );
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      do {
+        const r = await call(
+          reviewer,
+          `/finance/assets/${asset.id}/history?limit=7${cursor ? '&before=' + cursor : ''}`,
+        );
+        assert.equal(r.status, 200);
+        seen.push(...r.body.items.map((e: any) => e.id));
+        cursor = r.body.nextCursor;
+      } while (cursor);
+      assert.deepEqual(
+        seen,
+        expected.map((e) => e.id),
+      );
+      assert.equal(new Set(seen).size, expected.length);
+      for (const u of [employee, itAdmin, executive])
+        assert.equal((await call(u, `/finance/assets/${asset.id}/history`)).status, 403);
+      assert.equal(
+        (await call(admin, `/finance/assets/${asset.id}/history?limit=101`)).status,
+        422,
+      );
+      assert.equal(
+        (await call(admin, `/finance/assets/${asset.id}/history?before=invalid`)).status,
+        422,
+      );
+      assert.equal(
+        (await call(admin, `/finance/assets/${asset.id}/history?before=${randomUUID()}`)).status,
+        404,
+      );
+      assert.equal((await call(admin, `/finance/assets/${randomUUID()}/history`)).status, 404);
+    });
     it('finance history is append-only at the database boundary', async () => {
       await assert.rejects(
         db.query(`UPDATE asset_finance_events SET reason='changed' WHERE asset_id=$1`, [asset.id]),

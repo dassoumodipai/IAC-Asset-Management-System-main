@@ -14,7 +14,7 @@ Checkpoint 28 October 2026, 21:40 IST. Local tested source is ahead of the parti
 | Notifications | Existing encrypted SMTP outbox/retry worker plus in-app announcements/push; unread history now paged | SMTP environment settings, announcement audience/content/attachments and existing notification recipients | Editable/versioned operational email template designer, provider bounce/complaint events and alerts |
 | Delivery health | New Admin-only real DB status/filter/attempt history | Filter/state/page presentation | Safe governed resend workflow, automated escalation, confirmed inbox delivery |
 | Security/access | Existing sessions, portal acceptance and MFA, expanded to Finance/Executive; Finance evidence append-only | Existing roles/reference settings; role changes require reasons | Tenant isolation, SSO/SCIM, custom role/field permission builder, penetration testing |
-| Scale | Repeatable rollback-only 50k-asset query probe with EXPLAIN evidence | Local test dataset and query measurement | Concurrent HTTP workload, realistic history/photo/import volume, production capacity and restore proof |
+| Scale | Repeatable rollback-only 50k-asset query probe with EXPLAIN evidence | Local test dataset and query measurement | Sustained mixed concurrent HTTP load, realistic history/photo/import volume, production capacity and restore proof |
 | SaaS operations | No multi-tenant SaaS claim | Local/single-organization deployment settings | Tenant onboarding/isolation, subscriptions/billing, custom domains, availability/recovery commitments |
 
 ## Real, simulated and unavailable connections
@@ -26,4 +26,4 @@ Checkpoint 28 October 2026, 21:40 IST. Local tested source is ahead of the parti
 
 ## Tested checkpoint
 
-94 integration, 27 API unit, 62 web unit and 32 Chrome browser tests passed, plus lint/typecheck/production build. These counts certify only their exercised cases. They do not turn missing roadmap modules into working features or prove unlimited scale.
+At the 22:06 checkpoint, 98 integration, 27 API unit, 62 web unit and 33 Chrome browser tests passed, plus lint/typecheck/production build. These counts certify only their exercised cases. They do not turn missing roadmap modules into working features or prove unlimited scale.

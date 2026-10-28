@@ -186,6 +186,16 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
     [reason, setReason] = useState(''),
     [decision, setDecision] = useState('APPROVE'),
     [saved, setSaved] = useState('');
+  const history = useInfiniteQuery({
+    queryKey: ['finance-history', a.id],
+    initialPageParam: '',
+    queryFn: ({ pageParam, signal }) =>
+      api<{ items: FinanceAsset['history']; nextCursor: string | null }>(
+        `/finance/assets/${a.id}/history` + queryString({ before: pageParam || undefined }),
+        { signal },
+      ),
+    getNextPageParam: (p) => p.nextCursor ?? undefined,
+  });
   const canReview =
     hasRole(user, 'FINANCE') && a.state === 'SUBMITTED' && a.submittedBy !== user?.id;
   const stale = a.state === 'SUBMITTED' && a.submittedAssetVersion !== a.assetVersion;
@@ -404,23 +414,38 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
       </div>
       <Panel title="Finance history">
         <p className="muted">
-          Latest 50 Finance events, newest first. The full evidence remains in the audit database.
+          Finance events, newest first. Load earlier events without losing the current record.
         </p>
-        {a.history.length ? (
+        {history.isPending ? (
+          <Loading />
+        ) : history.error ? (
+          <ErrorNotice error={history.error} retry={() => void history.refetch()} />
+        ) : history.data?.pages.some((p) => p.items.length) ? (
           <ol className="finance-history">
-            {a.history.map((e) => (
-              <li key={e.id}>
-                <strong>{e.action}</strong>
-                <span>
-                  {e.actor} · {date(e.occurredAt)}
-                </span>
-                <p>{e.reason}</p>
-              </li>
-            ))}
+            {history.data.pages
+              .flatMap((p) => p.items)
+              .map((e) => (
+                <li key={e.id}>
+                  <strong>{e.action}</strong>
+                  <span>
+                    {e.actor} · {date(e.occurredAt)}
+                  </span>
+                  <p>{e.reason}</p>
+                </li>
+              ))}
           </ol>
         ) : (
           <p>No Finance events yet.</p>
         )}
+        {history.hasNextPage ? (
+          <button
+            className="button secondary"
+            disabled={history.isFetchingNextPage}
+            onClick={() => void history.fetchNextPage()}
+          >
+            {history.isFetchingNextPage ? 'Loading…' : 'Load earlier Finance events'}
+          </button>
+        ) : null}
       </Panel>
     </>
   );

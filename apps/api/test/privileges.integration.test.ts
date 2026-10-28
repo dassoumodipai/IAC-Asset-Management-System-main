@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Db } from '../src/db';
+import { FinanceService } from '../src/finance';
+import type { AuthRequest } from '../src/security';
 const url = process.env.TEST_DATABASE_URL;
 if (!url || !new URL(url).pathname.endsWith('_test'))
   throw new Error('Privileges test requires isolated _test DB');
@@ -103,7 +105,50 @@ test('runtime role can read application data but cannot erase inventory, mutate 
       "INSERT INTO asset_label_prints(asset_id,layout,printed_by) VALUES($1,'A4_24',$2)",
       [photoAssetId, photoUserId],
     );
+    // Run the actual Finance service inside the restricted-role transaction.
+    // Nested service transactions must keep this connection and its role.
+    const [{ id: reviewerId }] = (
+      await c.query(
+        "INSERT INTO users(email,display_name) VALUES($1,'Synthetic independent reviewer') RETURNING id",
+        [`runtime-finance-${randomUUID()}@example.test`],
+      )
+    ).rows;
+    const service = new FinanceService(db);
+    const request = (id: string, roles: string[], version: number) =>
+      ({
+        user: { id, roles },
+        get: (name: string) => (name.toLowerCase() === 'if-match' ? `"${version}"` : undefined),
+      }) as AuthRequest;
+    const submitted = await service.submit(request(photoUserId, ['ADMIN'], 1), photoAssetId, {
+      reason: 'Synthetic runtime-role submission',
+    });
+    assert.equal(submitted.state, 'SUBMITTED');
+    const approved = await service.review(
+      request(reviewerId, ['FINANCE'], submitted.financeVersion),
+      photoAssetId,
+      {
+        decision: 'APPROVE',
+        reason: 'Synthetic independent invoice check',
+        purchaseCost: '1500.00',
+        purchaseDate: '2026-01-05',
+        invoiceNumber: 'RUNTIME-SYNTHETIC-1',
+        supplier: 'Synthetic Supplier',
+      },
+    );
+    assert.equal(approved.state, 'APPROVED');
+    assert.equal(approved.approvedCost, '1500.00');
+    assert.equal(approved.history.length, 2);
+    const [{ count: evidenceCount }] = (
+      await c.query(
+        "SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action IN ('FINANCE_SUBMITTED','FINANCE_APPROVED')",
+        [photoAssetId],
+      )
+    ).rows;
+    assert.equal(evidenceCount, '2');
     for (const sql of [
+      'UPDATE asset_finance_events SET reason=reason WHERE false',
+      'DELETE FROM asset_finance_events WHERE false',
+      'DELETE FROM asset_finance WHERE false',
       'UPDATE ticket_photos SET position=1',
       'DELETE FROM ticket_photos',
       "UPDATE asset_label_prints SET layout='A4_14'",

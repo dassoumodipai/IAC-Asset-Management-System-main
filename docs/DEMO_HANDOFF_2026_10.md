@@ -42,7 +42,7 @@ For a synthetic real-API recorded walkthrough, set `IAC_RECORD_DEMO=1` when runn
 
 ## Verification evidence
 
-At the 21:49 checkpoint: 97 database/API integration tests, 27 API unit tests, 62 web unit tests and all 32 Chrome browser tests passed (browser/unit/build checkpoint 21:31). Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
+At the 22:06 checkpoint: 98 database/API integration tests, 27 API unit tests, 62 web unit tests and all 33 Chrome browser tests passed. Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
 
 Production dependency audit: zero reported vulnerabilities at the checkpoint after Nodemailer update and compatible body-parser/multer overrides. Full audit retains four low-severity development dependency findings. Audit output is a point-in-time advisory check, not a security guarantee.
 
@@ -63,3 +63,7 @@ Observed p95 milliseconds: catalog first page 1.97; exact asset lookup 0.18; con
 Tenant isolation and tenant-aware authorization, provisioning/subscriptions/billing, SSO/SCIM, configurable approval routing, policy-approved finance/depreciation, procurement, budgets, stock/reorder rules, HR/offboarding, integrations/discovery, delivery bounces/alerts, restore drills and realistic concurrent load remain later releases. A grouped equipment view does not merge items or create a bulk atomic handover. Assignments remain explicit one-item actions with version checks.
 
 The review workflow is fork -> feature branch -> pull request -> owner review. Do not merge upstream automatically.
+
+## Finance history and runtime permissions
+
+Finance history now has an asset-scoped cursor API and an earlier-events control. The integration regression walks 57 older tied-timestamp events without duplicates or omissions. The restricted iac_runtime test executes actual Finance submission/independent approval and verifies audit writes while denying evidence updates/deletes. This is not complete runtime-role coverage of every API.

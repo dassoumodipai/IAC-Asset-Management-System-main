@@ -75,7 +75,15 @@ test('registrar submits, Finance returns and approves amendment, executive reads
   await page.goto(`/finance/${assetId}`);
   await expect(page.getByRole('heading', { name: `Finance · ${assetCode}` })).toBeVisible();
   await page.getByLabel('Submission reason').fill('Synthetic invoice ready for independent review');
-  await page.getByRole('button', { name: 'Submit to Finance', exact: true }).click();
+  await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.url().endsWith(`/finance/assets/${assetId}/submit`) &&
+        r.request().method() === 'POST' &&
+        r.status() === 201,
+    ),
+    page.getByRole('button', { name: 'Submit to Finance', exact: true }).click(),
+  ]);
   await expect(page.getByText('SUBMITTED', { exact: true }).first()).toBeVisible();
   await signIn(context, finance);
   await page.goto('/dashboard');
@@ -91,7 +99,15 @@ test('registrar submits, Finance returns and approves amendment, executive reads
   await page
     .getByLabel('Submission reason')
     .fill('Corrected source invoice attached in demo records');
-  await page.getByRole('button', { name: 'Submit to Finance', exact: true }).click();
+  await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.url().endsWith(`/finance/assets/${assetId}/submit`) &&
+        r.request().method() === 'POST' &&
+        r.status() === 201,
+    ),
+    page.getByRole('button', { name: 'Submit to Finance', exact: true }).click(),
+  ]);
   await expect(page.getByText('SUBMITTED', { exact: true }).first()).toBeVisible();
   await signIn(context, finance);
   await page.goto(`/finance/${assetId}`);
@@ -132,6 +148,42 @@ test('registrar submits, Finance returns and approves amendment, executive reads
   await signIn(context, employee);
   await page.goto('/executive');
   await expect(page.getByRole('heading', { name: 'Executive access required' })).toBeVisible();
+});
+test('Finance history reaches older evidence through the real paginated API', async ({
+  page,
+  context,
+}) => {
+  await pool.query(
+    `INSERT INTO asset_finance_events(asset_id,action,actor_id,reason,finance_version,occurred_at)
+    SELECT $1,'SUBMITTED',$2,'Synthetic archived Finance event '||i,i,'2010-01-01 00:00:00.123456+00'::timestamptz
+    FROM generate_series(1,57) i`,
+    [assetId, admin.id],
+  );
+  await signIn(context, finance);
+  await page.goto(`/finance/${assetId}`);
+  const list = page.locator('.finance-history');
+  await expect(list.locator('li')).toHaveCount(25);
+  await page.getByRole('button', { name: 'Load earlier Finance events', exact: true }).click();
+  await expect(list.locator('li')).toHaveCount(50);
+  await page.getByRole('button', { name: 'Load earlier Finance events', exact: true }).click();
+  const expected = Number(
+    (await pool.query('SELECT count(*) FROM asset_finance_events WHERE asset_id=$1', [assetId]))
+      .rows[0].count,
+  );
+  await expect(list.locator('li')).toHaveCount(expected);
+  await expect(
+    page.getByRole('button', { name: 'Load earlier Finance events', exact: true }),
+  ).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await list.locator('li').last().scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '/downloads/iac-finance-history-paging-mobile.png' });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page
+    .getByRole('heading', { name: 'Finance history', exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '/downloads/iac-finance-history-paging-desktop.png' });
 });
 test('Finance mobile queue, errors and server unread history remain usable', async ({
   page,
