@@ -245,6 +245,16 @@ test('Admin delivery health shows retry evidence without message content and den
   ).toBeVisible();
   await page.getByLabel('Delivery state').selectOption('DEAD');
   const card = page.locator('article').filter({ hasText: `${tag}-DELIVERY` });
+  // Delivery IDs are random UUIDs, not chronological. Accumulated fixtures can
+  // put this record on any page; exercise the real pagination rather than
+  // assuming the newest insertion sorts first.
+  while (!(await card.count())) {
+    const more = page.getByRole('button', { name: 'Load more deliveries', exact: true });
+    if (!(await more.count())) break;
+    const count = await page.locator('article').count();
+    await more.click();
+    await expect.poll(() => page.locator('article').count()).toBeGreaterThan(count);
+  }
   await expect(card).toBeVisible();
   await expect(card).toContainText('6 / 6');
   await card.getByText('Attempt history', { exact: true }).click();
@@ -258,6 +268,16 @@ test('Admin delivery health shows retry evidence without message content and den
     page.getByRole('heading', { name: 'Email delivery health', exact: true }),
   ).toBeVisible();
   await page.getByLabel('Delivery state').selectOption('DEAD');
+  // Delivery IDs are random UUIDs, not chronological. Accumulated fixtures can
+  // put this record on any page; exercise the real pagination rather than
+  // assuming the newest insertion sorts first.
+  while (!(await card.count())) {
+    const more = page.getByRole('button', { name: 'Load more deliveries', exact: true });
+    if (!(await more.count())) break;
+    const count = await page.locator('article').count();
+    await more.click();
+    await expect.poll(() => page.locator('article').count()).toBeGreaterThan(count);
+  }
   await expect(card).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: '/downloads/iac-delivery-health-mobile.png', fullPage: true });

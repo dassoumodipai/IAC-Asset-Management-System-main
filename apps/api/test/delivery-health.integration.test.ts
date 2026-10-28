@@ -37,8 +37,12 @@ describe('Admin delivery health read-only scope', { skip: !connection }, () => {
   });
   after(async () => app?.close());
   it('Admin sees delivery state and safe attempts, never payload or message body', async () => {
-    const d = await service.overview(req('ADMIN'), { state: 'DEAD', limit: 100 });
-    const own = d.items.find((x) => x.id === id);
+    let d = await service.overview(req('ADMIN'), { state: 'DEAD', limit: 100 });
+    let own = d.items.find((x) => x.id === id);
+    while (!own && d.nextCursor) {
+      d = await service.overview(req('ADMIN'), { state: 'DEAD', limit: 100, before: d.nextCursor });
+      own = d.items.find((x) => x.id === id);
+    }
     assert.ok(own);
     assert.equal(own.attempts, 6);
     assert.equal(own.last_error_code, 'EAUTH');
