@@ -19,7 +19,7 @@ ADMIN owns registration and custody changes in the existing application. IT_ADMI
 
 ## Running safely
 
-Use Node 24, PostgreSQL and the repository's existing setup instructions. Apply migrations 017 and 018 after the existing migrations, then reapply infra/runtime-grants.sql to the dedicated runtime role. Migration 018 blocks update/delete on Finance evidence. Run with generated local test settings and local fake SMTP only. Do not copy test credentials to production or enable real outbound delivery without approval.
+Use Node 24, PostgreSQL and the repository's existing setup instructions. Apply all pending migrations through023, then reapply infra/runtime-grants.sql to the dedicated runtime role. Migration 018 blocks update/delete on Finance evidence. Run with generated local test settings and local fake SMTP only. Do not copy test credentials to production or enable real outbound delivery without approval.
 
 Commands:
 
@@ -119,3 +119,11 @@ Local regression environment caveat: a stopped fake SMTP process correctly faile
 23:55 queued-authentication check: a resend consumed the prior invitation token, but a delayed original outbox message could still be sent before its original expiry, leaving the recipient an unusable link. Reproduced SMTP acceptance of the stale message before the fix. Worker now rechecks token activity for invitation, verification, password-reset and email-change messages before dispatch; inactive links are dead-lettered with audit and no SMTP attempt, while replacements still send. This cannot recall mail already handed to SMTP or eliminate every race after the final eligibility check. Targeted worker8/8, gated lint/typecheck/build,111/111integration and2/2 invitation browser checks pass. No UI or captured manager-demo workflow changed.
 
 00:02 asset-edit fix: full-form PATCH included unchanged Finance-controlled fields, incorrectly blocking a non-financial note edit after approval. Browser regression reproduces409 before the fix. Asset editor now sends changed fields only. Approved-cost metadata remains unchanged for a remarks-only edit; trying to alter cost still returns409 with Finance-workflow guidance. Gated lint/typecheck/build and7/7 affected Finance/delivery/mapping/edit browser tests pass. Backend unchanged since111/111integration checkpoint. No financial permission widened.
+
+## 29 October, 01:17 release-review checkpoint
+
+Source a5dab89 includes private invoice evidence/local suggestions, scoped persistent workflow inbox, actual QR-pixel decoding through simulated camera, source-defined Executive activity, Admin stocktake evidence, lifecycle attention, queued ticket/Finance original-account authorization, aligned upload envelopes and bounded DB work. Full127integration+lint/types/build pass. Latest32API/62webunits and browser splits14Finance/newmodule+22workflow+4visualaudit predate backend-only final fixes. No combined full browser success is asserted.
+
+A new selected22table synthetic dump/restore passed complete-row digests,6integrity checks and restored Finance/invoice/stocktake append-only mutation denial. The restricted-runtime50k short probe with DB budgets completed2336reads/10sec followed by307reads+38mutations/7.30sec,zeroerrors,persistedreconciliation and~3.77secwritep95. Not sustainedcapacity,productionPITR,encryptedbackup/keyrecovery,RPO/RTO or an SLA. Docker/Pg17/Windows, production deployment and real inbox delivery remain unverified.
+
+For the manager walkthrough use fictional AdminSoumodipDas and FinanceJayPrakash(JP) once disclosed as synthetic. Explain each page/field and save boundary, show actual photo/QR/invoice/notification actions at normal readable scale, and label simulated camera and local Mailpit. Creative chapter/transitions may support the detailed tutorial, not replace it. Earlier short demo media is not the final requested video. PR remains explicitly held.
