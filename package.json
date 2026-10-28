@@ -27,7 +27,8 @@
     "format": "prettier --write \"apps/**/*.{ts,tsx,css,json,html}\" \"scripts/*.mjs\" \"test/*.ts\" \"*.ts\" \"*.mjs\"",
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,css,json,html}\" \"scripts/*.mjs\" \"test/*.ts\" \"*.ts\" \"*.mjs\"",
     "verify:restore:test": "node scripts/verify-test-restore.mjs",
-    "test:setup": "node --test scripts/setup.test.mjs"
+    "test:setup": "node --test scripts/setup.test.mjs",
+    "probe:load:test": "npm run build -w @iac/api && node scripts/load-probe.mjs"
   },
   "overrides": {
     "exceljs": {

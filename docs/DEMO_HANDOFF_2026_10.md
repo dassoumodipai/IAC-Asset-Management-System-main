@@ -77,3 +77,9 @@ Setup regression: `npm run test:setup` checks private local file generation/pres
 SMTP test safety: required fake-mail dependency failures now fail acceptance/recovery tests rather than returning early as if they passed. A deliberate loopback-port1 run failed with the expected dependency error, then the complete101test suite passed with Mailpit available. Test SMTP settings override operational credentials.
 
 Compiled-runtime smoke: in a separate clean directory, production-only `npm ci --omit=dev --ignore-scripts` completed and native Argon2 hash/verify plus Sharp image processing passed. Compiled API started against the synthetic database and `/api/v1/ready` returned200. This checks the installed production dependency surface on this Linux/Node24 environment, not the unboot-tested Docker image or real HTTPS login.
+
+## Bounded mixed HTTP read probe
+
+`npm run probe:load:test` creates a new loopback disposable `_test` database, applies migrations, generates50000synthetic assets/1000Finance submissions and runs20concurrent local HTTP readers for10seconds. It exercises catalog/search, Finance queue/history, Executive summary and forbidden Employee/IT calls. The28October checkpoint completed3004requests with0unexpected statuses/payloads/errors and unchanged Finance evidence. Raw aggregate latency is in docs/evidence/mixed-http-probe-2026-10-28.json.
+
+This is a short correctness/latency probe, not sustained production capacity or an SLA. It excludes writes, files, imports, WAN latency, real users and SMTP. The script requires local test-owner CREATE DATABASE rights and deletes its disposable database. Do not run it against production or while sharing scarce resources with a live service.
