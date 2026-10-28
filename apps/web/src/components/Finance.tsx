@@ -1,3 +1,4 @@
+import { InvoiceEvidence } from './InvoiceEvidence';
 import { useState, type FormEvent } from 'react';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
@@ -30,7 +31,14 @@ interface FinanceAsset {
   submittedAssetVersion: number | null;
   approvedCost: string | null;
   approvedAt: string | null;
-  history: { id: string; action: string; reason: string; actor: string; occurredAt: string }[];
+  history: {
+    id: string;
+    action: string;
+    reason: string;
+    actor: string;
+    occurredAt: string;
+    details?: { invoiceEvidence?: { id: string; sha256: string } };
+  }[];
 }
 const money = (value: string | number | null) =>
   value == null
@@ -236,6 +244,7 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
   const { user } = useSession(),
     action = useAction(),
     client = useQueryClient();
+  const [invoiceEvidenceId, setInvoiceEvidenceId] = useState<string>();
   const [cost, setCost] = useState(a.purchaseCost ?? ''),
     [purchaseDate, setPurchaseDate] = useState(a.purchaseDate?.slice(0, 10) ?? ''),
     [invoice, setInvoice] = useState(a.invoiceNumber ?? ''),
@@ -281,7 +290,13 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
           decision,
           reason,
           ...(decision === 'APPROVE'
-            ? { purchaseCost: cost, purchaseDate, invoiceNumber: invoice, supplier }
+            ? {
+                purchaseCost: cost,
+                purchaseDate,
+                invoiceNumber: invoice,
+                supplier,
+                ...(invoiceEvidenceId ? { invoiceEvidenceId } : {}),
+              }
             : {}),
         },
         version: a.financeVersion ?? undefined,
@@ -321,6 +336,18 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
           Finance can review it.
         </p>
       ) : null}
+      <InvoiceEvidence
+        assetId={a.id}
+        version={a.assetVersion}
+        canApply={canReview && !stale && decision === 'APPROVE'}
+        onApply={(v, evidenceId) => {
+          setInvoiceEvidenceId(evidenceId);
+          if (v.purchaseCost !== undefined) setCost(v.purchaseCost);
+          if (v.purchaseDate !== undefined) setPurchaseDate(v.purchaseDate);
+          if (v.invoiceNumber !== undefined) setInvoice(v.invoiceNumber);
+          if (v.supplier !== undefined) setSupplier(v.supplier);
+        }}
+      />
       <div className="finance-layout">
         <Panel title="Review record">
           <dl className="finance-facts">
@@ -412,6 +439,12 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
                   </Field>
                 </>
               ) : null}
+              {invoiceEvidenceId ? (
+                <p className="muted">
+                  Selected source evidence will be linked to this approval. Review final values
+                  against the original.
+                </p>
+              ) : null}
               <Field label="Review reason" htmlFor="review-reason">
                 <textarea
                   id="review-reason"
@@ -488,6 +521,18 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
                     {e.actor} · {date(e.occurredAt)}
                   </span>
                   <p>{e.reason}</p>
+                  {e.details?.invoiceEvidence ? (
+                    <p style={{ overflowWrap: 'anywhere' }}>
+                      <a
+                        href={`/api/v1/finance/assets/${a.id}/invoices/${e.details.invoiceEvidence.id}`}
+                        download
+                      >
+                        Original invoice used for this approval
+                      </a>
+                      <br />
+                      SHA-256 {e.details.invoiceEvidence.sha256}
+                    </p>
+                  ) : null}
                 </li>
               ))}
           </ol>

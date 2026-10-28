@@ -38,6 +38,7 @@ const tables = [
   'ticket_updates',
   'asset_finance',
   'asset_finance_events',
+  'finance_invoice_evidence',
   'audit_events',
   'notification_outbox',
   'email_deliveries',
@@ -99,6 +100,7 @@ try {
     `SELECT count(*)::int AS n FROM (SELECT asset_id FROM assignments WHERE ended_at IS NULL GROUP BY asset_id HAVING count(*)>1) x`,
     `SELECT count(*)::int AS n FROM asset_finance f LEFT JOIN assets a ON a.id=f.asset_id WHERE a.id IS NULL`,
     `SELECT count(*)::int AS n FROM asset_finance_events e LEFT JOIN users u ON u.id=e.actor_id WHERE u.id IS NULL`,
+    `SELECT count(*)::int AS n FROM finance_invoice_evidence WHERE encode(sha256(content),'hex')<>sha256`,
   ];
   for (const sql of checks)
     if ((await restored.query(sql)).rows[0].n !== 0)
@@ -112,6 +114,21 @@ try {
   const client = await restored.connect();
   try {
     await client.query('BEGIN');
+    const evidence = (await client.query('SELECT id FROM finance_invoice_evidence LIMIT 1'))
+      .rows[0];
+    if (!evidence) throw new Error('Need synthetic invoice evidence for restore check');
+    await client.query('SAVEPOINT invoice_immutable');
+    let invoiceRejected = false;
+    try {
+      await client.query(
+        "UPDATE finance_invoice_evidence SET filename='forbidden.xlsx' WHERE id=$1",
+        [evidence.id],
+      );
+    } catch (e) {
+      invoiceRejected = /append only/.test(e.message);
+    }
+    await client.query('ROLLBACK TO SAVEPOINT invoice_immutable');
+    if (!invoiceRejected) throw Error('Restored invoice evidence accepted mutation');
     const event = (await client.query('SELECT id FROM asset_finance_events LIMIT 1')).rows[0];
     if (!event) throw new Error('Need synthetic Finance evidence to verify restored trigger');
     let rejected = false;
@@ -139,6 +156,8 @@ try {
         integrityChecks: checks.length,
         financeTriggerPresent: true,
         financeMutationRejected: true,
+        invoiceBytesDigestMatched: true,
+        invoiceMutationRejected: true,
         limits:
           'Not production PITR, encrypted-backup proof, key recovery, RPO/RTO guarantee or disaster recovery certification',
       },

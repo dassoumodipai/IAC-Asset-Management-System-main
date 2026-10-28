@@ -204,6 +204,36 @@ describe(
         count,
       );
     });
+    it('invoice HTTP enforces session, CSRF, role, version and private binary retrieval', async () => {
+      const Excel = (await import('exceljs')).default,
+        wb = new Excel.Workbook();
+      wb.addWorksheet('Invoice').addRow(['Invoice Number', 'SAFE-100']);
+      const bytes = Buffer.from(await wb.xlsx.writeBuffer()),
+        body = { filename: 'Invoice.xlsx', data: bytes.toString('base64') },
+        path = `/finance/assets/${asset.id}/invoices`;
+      assert.equal((await call(undefined, path)).status, 401);
+      for (const u of [employee, itAdmin, executive])
+        assert.equal((await call(u, path, body, asset.version)).status, 403);
+      assert.equal((await call(admin, path, body, asset.version, false)).status, 403);
+      assert.equal((await call(admin, path, body)).status, 428);
+      assert.equal((await call(admin, path, body, 999)).status, 412);
+      const uploaded = await call(admin, path, body, asset.version);
+      assert.equal(uploaded.status, 201);
+      assert.equal(uploaded.body.suggestions.invoiceNumber.value, 'SAFE-100');
+      const get = async (u: any, p = path + '/' + uploaded.body.id) =>
+        fetch(base + p, { headers: { Cookie: `${configuration().sessionCookie}=${u.session}` } });
+      const downloaded = await get(reviewer);
+      assert.equal(downloaded.status, 200);
+      assert.equal(downloaded.headers.get('cache-control'), 'private, no-store');
+      assert.match(downloaded.headers.get('content-disposition')!, /^attachment;/);
+      assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), bytes);
+      assert.equal((await get(employee)).status, 403);
+      assert.equal(
+        (await get(reviewer, `/finance/assets/${randomUUID()}/invoices/${uploaded.body.id}`))
+          .status,
+        404,
+      );
+    });
     it('denies anonymous, employee, IT and executive queue access; executive cannot mutate', async () => {
       for (const u of [null, employee, itAdmin, executive])
         assert.equal((await call(u, '/finance/queue')).status, u ? 403 : 401);

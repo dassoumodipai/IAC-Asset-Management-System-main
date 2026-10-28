@@ -34,6 +34,7 @@ const reviewInput = z
       .optional(),
     invoiceNumber: z.string().trim().min(1).max(500).optional(),
     supplier: z.string().trim().min(1).max(500).optional(),
+    invoiceEvidenceId: z.string().uuid().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -247,6 +248,16 @@ export class FinanceService {
         throw new ConflictException(
           'Asset changed after submission. Ask the registrar to resubmit the current version.',
         );
+      let invoiceEvidence: { id: string; sha256: string } | undefined;
+      if (data.invoiceEvidenceId) {
+        [invoiceEvidence] = await this.db.query(
+          'SELECT id,sha256 FROM finance_invoice_evidence WHERE id=$1 AND asset_id=$2',
+          [data.invoiceEvidenceId, id],
+          c,
+        );
+        if (!invoiceEvidence)
+          throw new NotFoundException('Invoice evidence not found for this asset');
+      }
       const action = data.decision === 'APPROVE' ? 'APPROVED' : 'RETURNED';
       let details: any = { assetVersion: asset.version };
       if (data.decision === 'APPROVE') {
@@ -285,6 +296,7 @@ export class FinanceService {
           supplier: data.supplier,
           currency: 'INR',
           priorApprovedCost: current.approved_cost,
+          ...(invoiceEvidence ? { invoiceEvidence } : {}),
         };
       }
       const [row] = await this.db.query(

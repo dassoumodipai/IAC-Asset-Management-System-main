@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { InvoiceEvidenceController, InvoiceEvidenceService } from './invoice-evidence';
 import { DeliveryHealthController, DeliveryHealthService } from './delivery-health';
 import { Module } from '@nestjs/common';
 import { Db } from './db';
@@ -16,6 +17,7 @@ import { PushController, PushService } from './push';
 import { NotificationsController, NotificationsService } from './notifications';
 @Module({
   controllers: [
+    InvoiceEvidenceController,
     DeliveryHealthController,
     EquipmentController,
     FinanceController,
@@ -30,6 +32,7 @@ import { NotificationsController, NotificationsService } from './notifications';
     NotificationsController,
   ],
   providers: [
+    InvoiceEvidenceService,
     DeliveryHealthService,
     EquipmentService,
     FinanceService,

@@ -294,7 +294,7 @@ test('Admin delivery health shows retry evidence without message content and den
   await expect(card).toContainText('Attempt 6: EAUTH');
   await expect(page.getByText('DO-NOT-EXPOSE-PRIVATE-TOKEN')).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: '/downloads/iac-delivery-health-desktop.png', fullPage: true });
+  await card.screenshot({ path: '/downloads/iac-delivery-health-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(
@@ -504,4 +504,126 @@ test('Admin can edit non-financial metadata after Finance approval without resen
     (await pool.query('SELECT purchase_cost FROM assets WHERE id=$1', [id])).rows[0].purchase_cost,
   ).toBe('65000.00');
   await page.screenshot({ path: '/downloads/iac-approved-edit-protected.png' });
+});
+
+test('Finance reviews invoice extraction before applying fields and separately approves', async ({
+  page,
+  context,
+}) => {
+  const Excel = (await import('exceljs')).default;
+  const wb = new Excel.Workbook(),
+    ws = wb.addWorksheet('Invoice');
+  ws.addRow(['Supplier', 'Example Systems']);
+  ws.addRow(['Invoice Number', 'INV-1042']);
+  ws.addRow(['Invoice Date', '2026-10-28']);
+  ws.addRow(['Grand Total', 'INR 65000.00']);
+  const bytes = Buffer.from(await wb.xlsx.writeBuffer());
+  const id = randomUUID();
+  await pool.query(
+    `INSERT INTO assets(id,asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by)VALUES($1,'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Invoice extraction browser','Owned','In Store','Good','Low',$2)`,
+    [id, admin.id],
+  );
+  await signIn(context, admin);
+  await page.goto(`/finance/${id}`);
+  await page.getByLabel('Submission reason').fill('Invoice ready for review');
+  await page.getByRole('button', { name: 'Submit to Finance', exact: true }).click();
+  await expect(page.getByText('SUBMITTED', { exact: true }).first()).toBeVisible();
+  await signIn(context, finance);
+  await page.goto(`/finance/${id}`);
+  await page.getByLabel('Invoice file (PDF or XLSX)').setInputFiles({
+    name: 'Invoice.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: bytes,
+  });
+  await expect(
+    page.getByText('Evidence saved. Asset values and Finance approval are unchanged.'),
+  ).toBeVisible();
+  await expect(page.getByLabel('Purchase cost (INR)', { exact: true })).toHaveValue('');
+  await expect(
+    page.getByRole('button', { name: 'Apply selected suggestions to form' }),
+  ).toBeDisabled();
+  for (const label of ['Invoice total (INR)', 'Purchase date:', 'Invoice number:', 'Supplier:'])
+    await page.getByRole('checkbox', { name: new RegExp(label.replace(/[()]/g, '\\$&')) }).check();
+  await page.getByRole('checkbox', { name: /I checked the original/ }).check();
+  await page.getByRole('button', { name: 'Apply selected suggestions to form' }).click();
+  await expect(page.getByLabel('Purchase cost (INR)', { exact: true })).toHaveValue('65000.00');
+  await expect(page.getByLabel('Invoice number', { exact: true })).toHaveValue('INV-1042');
+  expect(
+    (await pool.query('SELECT state FROM asset_finance WHERE asset_id=$1', [id])).rows[0].state,
+  ).toBe('SUBMITTED');
+  await page.screenshot({ path: '/downloads/iac-invoice-suggestions-desktop.png', fullPage: true });
+  await page
+    .getByLabel('Review reason')
+    .fill('Original invoice and per-asset cost independently checked');
+  await page.getByRole('button', { name: 'Record Finance approval', exact: true }).click();
+  await expect(page.getByText('APPROVED', { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Original invoice used for this approval' }),
+  ).toBeVisible();
+  const evidence = (
+    await pool.query(
+      "SELECT details FROM asset_finance_events WHERE asset_id=$1 AND action='APPROVED'",
+      [id],
+    )
+  ).rows[0].details;
+  expect(evidence.invoiceEvidence.id).toBeTruthy();
+  expect(evidence.invoiceEvidence.sha256).toMatch(/^[a-f0-9]{64}$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(page.getByText(/bytes · SHA-256/)).toBeVisible();
+  expect(
+    await page.getByText(/bytes · SHA-256/).evaluate((el) => el.scrollWidth <= el.clientWidth),
+  ).toBe(true);
+  await page.screenshot({ path: '/downloads/iac-invoice-evidence-mobile.png' });
+});
+
+test('invoice apply preserves unchecked manual fields and malformed upload gives a useful error', async ({
+  page,
+  context,
+}) => {
+  const Excel = (await import('exceljs')).default,
+    wb = new Excel.Workbook();
+  const ws = wb.addWorksheet('Invoice');
+  ws.addRow(['Supplier', 'Suggested Supplier']);
+  ws.addRow(['Grand Total', 'INR 100.00']);
+  const id = randomUUID();
+  await pool.query(
+    `INSERT INTO assets(id,asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by)VALUES($1,'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Selective invoice fields','Owned','In Store','Good','Low',$2)`,
+    [id, admin.id],
+  );
+  await signIn(context, admin);
+  await page.goto(`/finance/${id}`);
+  await page.getByLabel('Submission reason').fill('Review only selected fields');
+  await page.getByRole('button', { name: 'Submit to Finance', exact: true }).click();
+  await expect(page.getByText('SUBMITTED', { exact: true }).first()).toBeVisible();
+  await signIn(context, finance);
+  await page.goto(`/finance/${id}`);
+  await page.getByLabel('Supplier', { exact: true }).fill('Manually verified supplier');
+  await page
+    .getByLabel('Invoice file (PDF or XLSX)')
+    .setInputFiles({ name: 'bad.pdf', mimeType: 'application/pdf', buffer: Buffer.from('bad') });
+  await expect(page.getByRole('alert')).toContainText('Invalid PDF signature');
+  await expect(page.getByLabel('Supplier', { exact: true })).toHaveValue(
+    'Manually verified supplier',
+  );
+  await page.getByLabel('Invoice file (PDF or XLSX)').setInputFiles({
+    name: 'Invoice.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from(await wb.xlsx.writeBuffer()),
+  });
+  await expect(
+    page.getByText('Evidence saved. Asset values and Finance approval are unchanged.'),
+  ).toBeVisible();
+  await page.getByRole('checkbox', { name: /Invoice total/ }).check();
+  await page.getByRole('checkbox', { name: /I checked the original/ }).check();
+  await page.getByRole('button', { name: 'Apply selected suggestions to form' }).click();
+  await expect(page.getByLabel('Purchase cost (INR)', { exact: true })).toHaveValue('100.00');
+  await expect(page.getByLabel('Supplier', { exact: true })).toHaveValue(
+    'Manually verified supplier',
+  );
+  await page.getByRole('button', { name: 'Record Finance approval' }).click();
+  expect(
+    (await pool.query('SELECT state FROM asset_finance WHERE asset_id=$1', [id])).rows[0].state,
+  ).toBe('SUBMITTED');
 });

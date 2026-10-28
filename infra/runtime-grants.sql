@@ -19,3 +19,5 @@ GRANT INSERT ON ticket_photos,asset_label_prints TO iac_runtime;
 
 GRANT INSERT,UPDATE ON asset_finance TO iac_runtime;
 GRANT INSERT ON asset_finance_events TO iac_runtime;
+
+GRANT INSERT ON finance_invoice_evidence TO iac_runtime;

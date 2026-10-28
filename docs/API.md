@@ -209,3 +209,12 @@ Deactivate it with `PATCH /master-data/CATEGORY/Therapy%20Devices`, `If-Match: "
 ```json
 {"active":false,"reason":"Replaced by the revised classification"}
 ```
+
+## Invoice evidence
+
+- `POST /finance/assets/:id/invoices`: Admin/Finance, CSRF and asset `If-Match` required. JSON `{filename,data}` with canonical base64 PDF/XLSX up to 4 MiB. Returns evidence ID/hash and suggested values. Does not update the asset or approve it. Per-asset cap 50 distinct files, duplicate bytes reuse the same ID.
+- `GET /finance/assets/:id/invoices`: Admin/Finance private evidence metadata and extraction.
+- `GET /finance/assets/:id/invoices/:evidence`: Admin/Finance authenticated attachment download, no-store/nosniff.
+- Finance review accepts optional `invoiceEvidenceId` for a same-asset retained file. Approval history records its immutable ID/hash.
+
+See `INVOICE_EVIDENCE.md` for formats, limits, review and operational gates.
