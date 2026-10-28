@@ -287,7 +287,12 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                       <div className="actions">
                         {manage && canAssign(asset) ? (
                           <Link
-                            to={`/assets/${asset.id}/assign`}
+                            to={
+                              `/assets/${asset.id}/assign` +
+                              (params.get('person')
+                                ? '?person=' + encodeURIComponent(params.get('person')!)
+                                : '')
+                            }
                             className="table-link"
                             aria-label={`Assign ${asset.assetCode}`}
                           >
@@ -1294,20 +1299,31 @@ export function AssignmentForm() {
   const navigate = useNavigate();
   const asset = useQuery({ queryKey: ['asset', id], queryFn: () => api<Asset>(`/assets/${id}`) });
   const employees = usePages<User>('/users', { state: 'ACTIVE', role: 'EMPLOYEE' });
-  const [userId, setUserId] = useState('');
+  const personId = params.get('person');
+  const presetPerson = useQuery({
+    queryKey: ['assignment-person', personId],
+    enabled: !!personId,
+    queryFn: () => api<{ items: User[] }>(`/users?id=${encodeURIComponent(personId!)}`),
+  });
+  const [userId, setUserId] = useState(params.get('person') || '');
   const [note, setNote] = useState('');
   const action = useAction();
   const items =
-    employees.data?.pages
-      .flatMap((page) => page.items)
-      .filter(
-        (user) =>
-          user.state === 'ACTIVE' &&
-          user.emailVerifiedAt &&
-          user.portalAcceptedAt &&
-          user.roles.includes('EMPLOYEE') &&
-          user.id !== asset.data?.currentAssignment?.userId,
-      ) ?? [];
+    [
+      ...new Map(
+        [
+          ...(presetPerson.data?.items ?? []),
+          ...(employees.data?.pages.flatMap((page) => page.items) ?? []),
+        ].map((u) => [u.id, u]),
+      ).values(),
+    ].filter(
+      (user) =>
+        user.state === 'ACTIVE' &&
+        user.emailVerifiedAt &&
+        user.portalAcceptedAt &&
+        user.roles.includes('EMPLOYEE') &&
+        user.id !== asset.data?.currentAssignment?.userId,
+    ) ?? [];
   const [baseline, setBaseline] = useState<{ id: string; transfer: boolean; version: number }>();
   const selectedEmployee = items.find((employee) => employee.id === userId);
   const custodyAvailable =
@@ -1343,7 +1359,12 @@ export function AssignmentForm() {
       })
       .then(() => true)
       .catch(() => false);
-    if (result) navigate(`/assets/${id}`);
+    if (result)
+      navigate(
+        params.get('person')
+          ? `/equipment/people/${encodeURIComponent(params.get('person')!)}`
+          : `/assets/${id}`,
+      );
   }
   return (
     <>
@@ -1361,6 +1382,7 @@ export function AssignmentForm() {
           void employees.refetch();
         }}
       />
+      <ErrorNotice error={presetPerson.error} retry={() => void presetPerson.refetch()} />
       <ErrorNotice error={action.error} retry={() => window.location.reload()} />
       {asset.isPending ? (
         <Loading />
@@ -1425,6 +1447,21 @@ export function AssignmentForm() {
                   })),
                 ]}
               />
+              {personId && selectedEmployee ? (
+                <div className="notice">
+                  <p>
+                    Selected from their equipment workspace: {selectedEmployee.displayName} ·{' '}
+                    {selectedEmployee.email}. Confirm this recipient before assigning.
+                  </p>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => choose(selectedEmployee.id)}
+                  >
+                    Use this person for this item
+                  </button>
+                </div>
+              ) : null}
               <p id="assignment-eligibility" className="muted">
                 Recipients must be Active, have a verified email, accept portal access and hold the
                 Employee role. Manage invitations and roles in{' '}

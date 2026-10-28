@@ -1,0 +1,154 @@
+import 'reflect-metadata';
+import { before, after, describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import type { INestApplication } from '@nestjs/common';
+import { createApp } from '../src/main';
+import { Db } from '../src/db';
+import { DomainService } from '../src/domain';
+import { EquipmentService } from '../src/equipment';
+import { configuration } from '../src/config';
+import type { AuthRequest } from '../src/security';
+const connection = process.env.TEST_DATABASE_URL;
+if (connection && !new URL(connection).pathname.endsWith('_test'))
+  throw new Error('Isolated _test DB required');
+describe(
+  'one person multiple equipment role views',
+  { skip: !connection, concurrency: false },
+  () => {
+    let app: INestApplication,
+      db: Db,
+      domain: DomainService,
+      equipment: EquipmentService,
+      admin: any,
+      employee: any,
+      other: any,
+      finance: any,
+      executive: any,
+      itAdmin: any;
+    const assets: any[] = [],
+      tag = `equipment-${randomUUID()}`;
+    const req = (user: any, version?: number) =>
+      ({
+        user,
+        get: (n: string) =>
+          n.toLowerCase() === 'if-match' && version !== undefined
+            ? `"${version}"`
+            : n.toLowerCase() === 'idempotency-key'
+              ? randomUUID()
+              : undefined,
+      }) as AuthRequest;
+    before(async () => {
+      process.env.DATABASE_URL = connection;
+      app = await createApp();
+      db = app.get(Db);
+      domain = app.get(DomainService);
+      equipment = app.get(EquipmentService);
+      const make = async (roles: string[]) => {
+        const u = { id: randomUUID(), roles };
+        await db.query(
+          `INSERT INTO users(id,email,display_name,state,email_verified_at,portal_accepted_at,portal_notice_version) VALUES($1,$2,$3,'ACTIVE',now(),now(),$4)`,
+          [u.id, `${tag}-${u.id}@example.org`, `${tag} ${roles[0]}`, configuration().noticeVersion],
+        );
+        for (const r of roles)
+          await db.query('INSERT INTO user_roles(user_id,role_code) VALUES($1,$2)', [u.id, r]);
+        return u;
+      };
+      admin = await make(['ADMIN']);
+      employee = await make(['EMPLOYEE']);
+      other = await make(['EMPLOYEE']);
+      finance = await make(['FINANCE']);
+      executive = await make(['EXECUTIVE']);
+      itAdmin = await make(['IT_ADMIN']);
+      for (const [i, type] of ['Laptop', 'Mouse', 'Keyboard'].entries()) {
+        const [a] = await db.query(
+          `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by,purchase_cost) VALUES('IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware',$1,$2,'Owned','In Store','Good','Low',$3,1000) RETURNING *`,
+          [type, `${tag} item ${i}`, admin.id],
+        );
+        assets.push(a);
+        await domain.assign(req(admin, a.version), a.id, {
+          userId: employee.id,
+          note: 'Synthetic equipment set',
+        });
+      }
+    });
+    after(async () => {
+      await app?.close();
+    });
+    it('Admin sees one person with three distinct assets and full current equipment counts', async () => {
+      const list = await equipment.people(req(admin), { q: tag });
+      const p = list.items.find((u: any) => u.id === employee.id);
+      assert.equal(p.equipmentCount, 3);
+      assert.equal(p.pendingAcknowledgements, 3);
+      const record = await equipment.person(req(admin), employee.id, {});
+      assert.equal(record.items.length, 3);
+      assert.equal(record.summary.total, 3);
+      assert.equal(new Set(record.items.map((a: any) => a.id)).size, 3);
+      assert.deepEqual(record.items.map((a: any) => a.assetType).sort(), [
+        'Keyboard',
+        'Laptop',
+        'Mouse',
+      ]);
+    });
+    it('employees see only their own equipment without costs, Finance gets reviewed cost fields without custody writes', async () => {
+      const own = await equipment.person(req(employee), employee.id, {});
+      assert.equal(own.items.length, 3);
+      assert.ok(!('purchaseCost' in own.items[0]));
+      assert.ok(!('approvedCost' in own.items[0]));
+      await assert.rejects(equipment.person(req(other), employee.id, {}), /own equipment/);
+      await assert.rejects(equipment.people(req(employee), {}), /permission/);
+      const f = await equipment.person(req(finance), employee.id, {});
+      assert.equal(f.items[0].purchaseCost, '1000.00');
+      assert.equal(f.items[0].approvedCost, null);
+      assert.equal(f.items[0].financeState, null);
+      await assert.rejects(
+        domain.returnAsset(req(finance, 1), f.items[0].assignmentId, {
+          reason: 'Forbidden Finance custody move',
+          condition: 'Good',
+        }),
+        /permission/,
+      );
+      for (const u of [executive, itAdmin])
+        await assert.rejects(equipment.person(req(u), employee.id, {}), /own equipment/);
+    });
+    it('pages all equipment and one-item return leaves the rest mapped with history preserved', async () => {
+      let p = await equipment.person(req(admin), employee.id, { limit: 1 });
+      const ids = p.items.map((a: any) => a.id);
+      while (p.nextCursor) {
+        p = await equipment.person(req(admin), employee.id, { limit: 1, after: p.nextCursor });
+        ids.push(...p.items.map((a: any) => a.id));
+      }
+      assert.equal(new Set(ids).size, 3);
+      const record = await equipment.person(req(admin), employee.id, {}),
+        first = record.items[0];
+      await domain.returnAsset(req(admin, first.assignmentVersion), first.assignmentId, {
+        reason: 'Return only the laptop-like item',
+        condition: 'Good',
+      });
+      const after = await equipment.person(req(employee), employee.id, {});
+      assert.equal(after.summary.total, 2);
+      assert.equal(after.items.length, 2);
+      assert.ok(!after.items.some((a: any) => a.id === first.id));
+      const [closed] = await db.query('SELECT ended_at FROM assignments WHERE id=$1', [
+        first.assignmentId,
+      ]);
+      assert.ok(closed.ended_at);
+      assert.equal(
+        (
+          await db.query(
+            "SELECT id FROM assignment_events WHERE assignment_id=$1 AND kind='RETURNED'",
+            [first.assignmentId],
+          )
+        ).length,
+        1,
+      );
+    });
+    it('validates paging and includes people without assigned equipment', async () => {
+      const p = await equipment.people(req(finance), { q: tag });
+      assert.equal(p.items.find((u: any) => u.id === other.id).equipmentCount, 0);
+      assert.equal((await equipment.person(req(other), other.id, {})).items.length, 0);
+      await assert.rejects(equipment.person(req(admin), employee.id, { limit: 101 }));
+      await assert.rejects(equipment.people(req(admin), { after: 'bad-id' }));
+    });
+  },
+);

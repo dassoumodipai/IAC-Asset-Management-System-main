@@ -247,7 +247,10 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
       'SELECT d.recipient FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
       [`ticket:${ticket.id}:created`],
     );
-    assert.deepEqual(notifications.map((r) => r.recipient).sort(), [admin.email]);
+    const expectedAdmins = await db.query(`SELECT DISTINCT u.email FROM users u WHERE u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='ADMIN')`);
+    assert.deepEqual(notifications.map((r) => r.recipient).sort(), expectedAdmins.map(r=>r.email).sort());
+    assert.ok(notifications.some(r=>r.recipient===admin.email));
+    assert.ok(!notifications.some(r=>r.recipient===itAdmin.email));
     const reported = await service.createTicket(request(other), {
       assetId: asset.id,
       subject: 'Non-holder report',

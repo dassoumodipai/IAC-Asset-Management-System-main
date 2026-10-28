@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
+import { api, queryString } from '../api';
 import { useAction } from '../hooks';
 import { Empty, ErrorNotice, Loading, PageTitle, Panel } from './ui';
 
@@ -21,12 +21,18 @@ interface Inbox {
   items: Announcement[];
   total: number;
   unreadCount: number;
+  nextCursor: string | null;
 }
 
-export function useNotificationInbox() {
-  return useQuery({
-    queryKey: ['notification-inbox'],
-    queryFn: () => api<Inbox>('/notifications'),
+export function useNotificationInbox(filter: 'ALL' | 'UNREAD' = 'ALL') {
+  return useInfiniteQuery({
+    queryKey: ['notification-inbox', filter],
+    initialPageParam: '',
+    queryFn: ({ pageParam, signal }) =>
+      api<Inbox>('/notifications' + queryString({ filter, cursor: pageParam || undefined }), {
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: 15_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
@@ -44,10 +50,11 @@ export function useUnreadNotificationCount() {
 }
 
 export function NotificationsPage() {
-  const inbox = useNotificationInbox();
-  const action = useAction<{ read: boolean }>();
   const [filter, setFilter] = useState<'ALL' | 'UNREAD'>('ALL');
-  const visibleItems = inbox.data?.items.filter((item) => filter === 'ALL' || !item.read) ?? [];
+  const inbox = useNotificationInbox(filter);
+  const action = useAction<{ read: boolean }>();
+  const visibleItems = inbox.data?.pages.flatMap((page) => page.items) ?? [];
+  const counts = inbox.data?.pages[0];
 
   return (
     <>
@@ -55,7 +62,7 @@ export function NotificationsPage() {
         title="Notifications"
         description="Notices from your IT team, shared with your account or department."
         action={
-          inbox.data?.unreadCount ? (
+          counts?.unreadCount ? (
             <button
               type="button"
               className="button secondary"
@@ -72,26 +79,24 @@ export function NotificationsPage() {
       <ErrorNotice error={inbox.error} retry={() => void inbox.refetch()} />
       <ErrorNotice error={action.error} />
       {inbox.isPending ? <Loading label="Loading notifications…" /> : null}
-      {inbox.data && inbox.data.items.length === 0 ? (
+      {counts && counts.total === 0 ? (
         <Panel className="notification-empty-panel">
           <Empty title="No announcements yet">
             New messages from your IT team will appear here.
           </Empty>
         </Panel>
       ) : null}
-      {inbox.data?.items.length ? (
+      {counts?.total ? (
         <section className="notification-inbox" aria-label="Announcements">
           <div className="notification-inbox-heading">
             <div>
               <span className="eyebrow">YOUR INBOX</span>
               <p className="notification-summary">
-                {inbox.data.unreadCount
-                  ? `${inbox.data.unreadCount} unread`
-                  : 'You’re all caught up'}
+                {counts!.unreadCount ? `${counts!.unreadCount} unread` : 'You’re all caught up'}
               </p>
             </div>
             <span className="muted">
-              {inbox.data.total} {inbox.data.total === 1 ? 'notice' : 'notices'}
+              {counts!.total} {counts!.total === 1 ? 'notice' : 'notices'}
             </span>
           </div>
           <div className="notification-filters" role="group" aria-label="Filter notifications">
@@ -101,7 +106,7 @@ export function NotificationsPage() {
               aria-pressed={filter === 'ALL'}
               onClick={() => setFilter('ALL')}
             >
-              All <span>{inbox.data.total}</span>
+              All <span>{counts!.total}</span>
             </button>
             <button
               type="button"
@@ -109,7 +114,7 @@ export function NotificationsPage() {
               aria-pressed={filter === 'UNREAD'}
               onClick={() => setFilter('UNREAD')}
             >
-              Unread <span>{inbox.data.unreadCount}</span>
+              Unread <span>{counts!.unreadCount}</span>
             </button>
           </div>
           {visibleItems.length === 0 ? (
@@ -193,8 +198,14 @@ export function NotificationsPage() {
               </div>
             </article>
           ))}
-          {filter === 'ALL' && inbox.data.total > inbox.data.items.length ? (
-            <p className="muted">Showing the latest {inbox.data.items.length} announcements.</p>
+          {inbox.hasNextPage ? (
+            <button
+              className="button secondary"
+              disabled={inbox.isFetchingNextPage}
+              onClick={() => void inbox.fetchNextPage()}
+            >
+              {inbox.isFetchingNextPage ? 'Loading…' : 'Load more notifications'}
+            </button>
           ) : null}
         </section>
       ) : null}

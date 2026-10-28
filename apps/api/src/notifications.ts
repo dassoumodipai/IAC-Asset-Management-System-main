@@ -9,6 +9,7 @@ import {
   UseGuards,
   NotFoundException,
   Res,
+  Query,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
@@ -28,7 +29,32 @@ const visibleToUser = (versionParam = '$2') => `
 export class NotificationsService {
   constructor(@Inject(Db) private readonly db: Db) {}
 
-  async inbox(req: AuthRequest) {
+  async inbox(req: AuthRequest, query: unknown = {}) {
+    const input = z
+      .object({
+        filter: z.enum(['ALL', 'UNREAD']).default('ALL'),
+        limit: z.coerce.number().int().min(1).max(100).default(25),
+        cursor: z.string().max(500).optional(),
+      })
+      .strict()
+      .parse(query);
+    const values: any[] = [req.user.id, configuration().noticeVersion];
+    let after = '';
+    if (input.cursor) {
+      let decoded: unknown;
+      try {
+        decoded = JSON.parse(Buffer.from(input.cursor, 'base64url').toString());
+      } catch {
+        decoded = null;
+      }
+      const cursor = z
+        .object({ createdAt: z.string().datetime(), id: z.string().uuid() })
+        .strict()
+        .parse(decoded);
+      values.push(cursor.createdAt, cursor.id);
+      after = ' AND (n.created_at,n.id)<($3::timestamptz,$4::uuid)';
+    }
+    values.push(input.limit + 1);
     const [rows, counts] = await Promise.all([
       this.db.query(
         `SELECT n.id,n.title,n.message,n.path,n.audience,d.name AS department_name,
@@ -38,9 +64,9 @@ export class NotificationsService {
          JOIN users u ON u.id=$1
          LEFT JOIN departments d ON d.id=n.department_id
          LEFT JOIN in_app_announcement_reads r ON r.announcement_id=n.id AND r.user_id=$1
-         WHERE ${visibleToUser()}
-         ORDER BY n.created_at DESC,n.id DESC LIMIT 100`,
-        [req.user.id, configuration().noticeVersion],
+         WHERE ${visibleToUser()}${input.filter === 'UNREAD' ? ' AND r.read_at IS NULL' : ''}${after}
+         ORDER BY n.created_at DESC,n.id DESC LIMIT $${values.length}`,
+        values,
       ),
       this.db.query(
         `SELECT count(*)::int AS total,
@@ -53,7 +79,7 @@ export class NotificationsService {
       ),
     ]);
     return {
-      items: rows.map((row) => ({
+      items: rows.slice(0, input.limit).map((row) => ({
         id: row.id,
         title: row.title,
         message: row.message,
@@ -66,6 +92,15 @@ export class NotificationsService {
           ? { name: row.attachment_name, type: row.attachment_type, size: row.attachment_size }
           : null,
       })),
+      nextCursor:
+        rows.length > input.limit
+          ? Buffer.from(
+              JSON.stringify({
+                createdAt: new Date(rows[input.limit - 1].created_at).toISOString(),
+                id: rows[input.limit - 1].id,
+              }),
+            ).toString('base64url')
+          : null,
       total: counts[0]?.total ?? 0,
       unreadCount: counts[0]?.unread ?? 0,
     };
@@ -134,8 +169,8 @@ export class NotificationsController {
   constructor(@Inject(NotificationsService) private readonly service: NotificationsService) {}
 
   @Get()
-  inbox(@Req() req: AuthRequest) {
-    return this.service.inbox(req);
+  inbox(@Req() req: AuthRequest, @Query() query: unknown) {
+    return this.service.inbox(req, query);
   }
 
   @Get('unread-count')

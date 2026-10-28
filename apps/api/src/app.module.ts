@@ -1,6 +1,9 @@
 import 'reflect-metadata';
+import { DeliveryHealthController, DeliveryHealthService } from './delivery-health';
 import { Module } from '@nestjs/common';
 import { Db } from './db';
+import { EquipmentController, EquipmentService } from './equipment';
+import { FinanceController, FinanceService } from './finance';
 import { AuthController, AuthService } from './auth';
 import { SessionGuard } from './security';
 import { DomainController, DomainService } from './domain';
@@ -13,6 +16,9 @@ import { PushController, PushService } from './push';
 import { NotificationsController, NotificationsService } from './notifications';
 @Module({
   controllers: [
+    DeliveryHealthController,
+    EquipmentController,
+    FinanceController,
     AuthController,
     DomainController,
     AssetPhotoController,
@@ -24,6 +30,9 @@ import { NotificationsController, NotificationsService } from './notifications';
     NotificationsController,
   ],
   providers: [
+    DeliveryHealthService,
+    EquipmentService,
+    FinanceService,
     Db,
     AuthService,
     SessionGuard,
