@@ -5,6 +5,7 @@ import { api, queryString } from '../api';
 import { useAction } from '../hooks';
 import { hasRole, useSession } from '../session';
 import { PageTitle, Panel, Field, ErrorNotice, Loading, Empty, Metric } from './ui';
+import { useReferences, locationLabel } from './References';
 interface Run {
   id: string;
   name: string;
@@ -50,11 +51,21 @@ function StocktakeList() {
       queryFn: ({ signal }) => api<{ items: Run[] }>('/stocktake', { signal }),
     }),
     action = useAction<Run>();
-  const [name, setName] = useState('');
+  const refs = useReferences();
+  const [name, setName] = useState(''),
+    [departmentId, setDepartmentId] = useState(''),
+    [locationId, setLocationId] = useState('');
   async function create(e: FormEvent) {
     e.preventDefault();
     await action
-      .mutateAsync({ path: '/stocktake', body: { name } })
+      .mutateAsync({
+        path: '/stocktake',
+        body: {
+          name,
+          departmentId: departmentId || undefined,
+          locationId: locationId || undefined,
+        },
+      })
       .then(() => setName(''))
       .catch(() => {});
   }
@@ -64,11 +75,11 @@ function StocktakeList() {
         title="Physical stocktake"
         description="Freeze expected inventory, record observations and review discrepancies without changing custody or Finance values."
       />
-      <Panel title="Start an organization-wide count">
+      <Panel title="Start a frozen count">
         <p>
-          The expected list includes all registered asset statuses and custody at creation. This
-          first interface counts the whole organization. Run creation does not claim anything was
-          physically seen.
+          The expected list includes all registered asset statuses and custody at creation. Leave
+          scope blank for the whole organization, or limit by department and/or location. Selecting
+          both uses their intersection. Run creation does not claim anything was physically seen.
         </p>
         <form onSubmit={create} className="form-stack">
           <Field label="Count name" htmlFor="count-name">
@@ -80,6 +91,37 @@ function StocktakeList() {
               onChange={(e) => setName(e.target.value)}
             />
           </Field>
+          <Field label="Count department scope" htmlFor="count-department">
+            <select
+              id="count-department"
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+            >
+              <option value="">All departments</option>
+              {refs.data?.departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                  {d.active ? '' : ' (inactive)'}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Count location scope" htmlFor="count-location">
+            <select
+              id="count-location"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+            >
+              <option value="">All locations</option>
+              {refs.data?.locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {locationLabel(l)}
+                  {l.active ? '' : ' (inactive)'}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <ErrorNotice error={refs.error} />
           <button className="button" disabled={action.isPending}>
             {action.isPending ? 'Creating snapshot...' : 'Create frozen stocktake'}
           </button>
@@ -106,6 +148,7 @@ function StocktakeList() {
   );
 }
 function StocktakeRun({ id }: { id: string }) {
+  const refs = useReferences();
   const query = useInfiniteQuery({
       queryKey: ['stocktake', id],
       initialPageParam: '',
@@ -159,6 +202,20 @@ function StocktakeRun({ id }: { id: string }) {
           </Link>
         }
       />
+      <p>
+        Frozen scope:{' '}
+        {d.run.scope.departmentId
+          ? (refs.data?.departments.find((x) => x.id === d.run.scope.departmentId)?.name ??
+            d.run.scope.departmentId)
+          : 'All departments'}{' '}
+        ·{' '}
+        {d.run.scope.locationId
+          ? refs.data?.locations.find((x) => x.id === d.run.scope.locationId)
+            ? locationLabel(refs.data.locations.find((x) => x.id === d.run.scope.locationId)!)
+            : d.run.scope.locationId
+          : 'All locations'}
+        .
+      </p>
       <p>{d.definition}</p>
       <div className="metric-grid four">
         <Metric label="Expected" value={s.expected} />

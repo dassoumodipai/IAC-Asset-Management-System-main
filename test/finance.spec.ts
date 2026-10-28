@@ -792,10 +792,30 @@ test('Admin freezes stocktake, records evidence and closes without changing inve
   await page.goto('/admin/stocktake');
   const countName = 'October Operations count ' + randomUUID().slice(0, 8);
   await page.getByLabel('Count name').fill(countName);
+  await pool.query('UPDATE assets SET department_id=$2 WHERE id=$1', [id, department]);
+  await page.getByLabel('Count department scope').selectOption(department);
+  await page.screenshot({ path: '/downloads/iac-stocktake-scope-form.png' });
   await page.getByRole('button', { name: 'Create frozen stocktake' }).click();
   await page.getByRole('link', { name: countName, exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Record an observation' })).toBeVisible();
   const run = page.url().split('/').pop();
+  expect(
+    (await pool.query('SELECT scope FROM stocktake_runs WHERE id=$1', [run])).rows[0].scope
+      .departmentId,
+  ).toBe(department);
+  const expected = (
+    await pool.query('SELECT asset_id FROM stocktake_expected WHERE run_id=$1', [run])
+  ).rows;
+  expect(expected.some((x) => x.asset_id === id)).toBe(true);
+  expect(
+    (
+      await pool.query(
+        'SELECT count(*)::int n FROM stocktake_expected e JOIN assets a ON a.id=e.asset_id WHERE e.run_id=$1 AND a.department_id IS DISTINCT FROM $2',
+        [run, department],
+      )
+    ).rows[0].n,
+  ).toBe(0);
+  await expect(page.getByText(/Frozen scope:/)).toContainText(tag);
   await page.getByLabel('Observed asset ID').fill(asset.asset_code);
   await page.getByLabel('Observation', { exact: true }).selectOption('MISMATCH');
   await page
