@@ -17,6 +17,10 @@ export class Db implements OnModuleDestroy {
       max: 10,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
+      // Server-side cancellation bounds active work even if the browser disconnects.
+      statement_timeout: 30000,
+      lock_timeout: 5000,
+      idle_in_transaction_session_timeout: 30000,
       ...(process.env.DATABASE_SSL === 'true' ? { ssl: { rejectUnauthorized: true } } : {}),
     });
     this.pool.on('error', () => process.stderr.write('Database pool connection error\n'));

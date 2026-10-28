@@ -81,6 +81,11 @@ class ApiExceptionFilter implements ExceptionFilter {
       status = 422;
       code = 'VALIDATION_FAILED';
       message = 'One or more values are invalid';
+    } else if (['55P03', '57014', '40001', '40P01'].includes((error as any)?.code)) {
+      status = 409;
+      code = 'DATABASE_BUSY';
+      message =
+        'The operation could not finish because the database is busy. Reload the current record and review it before retrying.';
     } else if (['42P01', '42703', '42883'].includes((error as any)?.code)) {
       status = 503;
       code = 'DATABASE_SCHEMA_OUT_OF_DATE';
