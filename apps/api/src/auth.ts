@@ -764,7 +764,7 @@ export class AuthService {
     const rows = await this.db.query(
       `SELECT u.id,u.email,u.display_name AS "displayName",u.employee_reference AS "employeeReference",
               u.designation,u.department_id AS "departmentId",d.name AS department,u.pending_email AS "pendingEmail",u.state,u.version,
-              u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",
+              u.created_at AS "createdAt",to_char(u.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time,u.email_verified_at AS "emailVerifiedAt",
               u.portal_accepted_at AS "portalAcceptedAt",u.portal_notice_version AS "portalNoticeVersion",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",
               coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles
        FROM users u
@@ -775,16 +775,19 @@ export class AuthService {
     );
     const items = rows
         .slice(0, input.limit)
-        .map((row) => ({ ...row, currentNoticeVersion: configuration().noticeVersion })),
-      last = items.at(-1);
+        .map(({ cursor_time: _cursorTime, ...row }) => ({
+          ...row,
+          currentNoticeVersion: configuration().noticeVersion,
+        })),
+      last = rows[input.limit - 1];
     return {
       items,
       totalCount,
       nextCursor:
         rows.length > input.limit
-          ? Buffer.from(
-              JSON.stringify({ createdAt: new Date(last.createdAt).toISOString(), id: last.id }),
-            ).toString('base64url')
+          ? Buffer.from(JSON.stringify({ createdAt: last.cursor_time, id: last.id })).toString(
+              'base64url',
+            )
           : null,
     };
   }

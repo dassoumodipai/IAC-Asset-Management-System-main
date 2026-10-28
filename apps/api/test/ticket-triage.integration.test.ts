@@ -135,3 +135,27 @@ test('ticket, ascending discussion and audit cursors preserve sub-millisecond or
     audits,
   );
 });
+
+test('staff directory cursor preserves original microsecond timestamps', async () => {
+  const { AuthService } = await import('../src/auth');
+  const auth = new AuthService(db),
+    tag = `users-precision-${randomUUID()}`,
+    expected: string[] = [];
+  for (let i = 1; i <= 5; i++) {
+    const [u] = await db.query(
+      "INSERT INTO users(email,display_name,created_at)VALUES($1,$2,'2031-01-01 00:00:00.123000+00'::timestamptz+$3*interval '1 microsecond')RETURNING id",
+      [`${tag}-${i}@example.org`, tag, i],
+    );
+    expected.unshift(u.id);
+  }
+  const req = { user: { roles: ['ADMIN'] } } as AuthRequest;
+  let cursor: string | undefined;
+  const seen: string[] = [];
+  do {
+    const p = await auth.users(req, { q: tag, limit: 2, ...(cursor ? { cursor } : {}) });
+    seen.push(...p.items.map((x) => x.id));
+    assert(p.items.every((x) => !('cursor_time' in x)));
+    cursor = p.nextCursor ?? undefined;
+  } while (cursor);
+  assert.deepEqual(seen, expected);
+});
