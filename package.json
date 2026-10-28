@@ -26,7 +26,8 @@
     "infra:stop": "docker compose --env-file .env -f infra/compose.local.yml stop",
     "format": "prettier --write \"apps/**/*.{ts,tsx,css,json,html}\" \"scripts/*.mjs\" \"test/*.ts\" \"*.ts\" \"*.mjs\"",
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,css,json,html}\" \"scripts/*.mjs\" \"test/*.ts\" \"*.ts\" \"*.mjs\"",
-    "verify:restore:test": "node scripts/verify-test-restore.mjs"
+    "verify:restore:test": "node scripts/verify-test-restore.mjs",
+    "test:setup": "node --test scripts/setup.test.mjs"
   },
   "overrides": {
     "exceljs": {
