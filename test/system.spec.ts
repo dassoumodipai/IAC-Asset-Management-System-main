@@ -116,6 +116,34 @@ test.afterAll(async () => {
   await Promise.all([admin?.dispose(), employee?.dispose(), other?.dispose()]);
   await pool.end();
 });
+test('fresh Admin signs in, enrolls authenticator, accepts notice and signs in again using recovery', async ({page})=>{
+ const id=randomUUID(),email=`onboarding-${suffix}@example.org`;
+ await pool.query("INSERT INTO users(id,email,display_name,password_hash,state,email_verified_at) VALUES($1,$2,'Fresh demo Admin',$3,'ACTIVE',now())",[id,email,await hash(password)]);
+ await pool.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'ADMIN'),($1,'EMPLOYEE')",[id]);
+ await page.goto('/login');
+ await page.getByLabel('Work email').fill(email);await page.getByLabel('Password',{exact:true}).fill(password);
+ await page.getByRole('button',{name:'Sign in to workspace'}).click();
+ await expect(page.getByRole('heading',{name:'Two-step verification'})).toBeVisible();
+ await page.getByRole('button',{name:'Set up authenticator'}).click();
+ const setup=await page.getByLabel('Setup key',{exact:true}).inputValue();
+ await page.getByLabel('Authenticator code',{exact:true}).fill(otp(setup));
+ await page.getByRole('button',{name:'Confirm authenticator'}).click();
+ await expect(page.getByText('Save your recovery codes now',{exact:true})).toBeVisible();
+ const recovery=(await page.locator('.recovery-codes').innerText()).trim().split('\n')[0];
+ await page.getByRole('checkbox').check();
+ await page.getByRole('link',{name:/Continue/}).click();
+ await expect(page.getByRole('heading',{name:'Your portal access'})).toBeVisible();
+ await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Accept and continue'}).click();
+ await expect(page).toHaveURL(/dashboard/);
+ await page.screenshot({path:'/downloads/iac-fresh-admin-onboarding.png'});
+ await page.getByRole('button',{name:'Sign out',exact:true}).click();
+ await page.getByLabel('Work email').fill(email);await page.getByLabel('Password',{exact:true}).fill(password);
+ await page.getByRole('button',{name:'Sign in to workspace'}).click();
+ await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
+ await page.getByLabel('Recovery code',{exact:true}).fill(recovery);
+ await page.getByRole('button',{name:/Verify/}).click();
+ await expect(page).toHaveURL(/dashboard/);
+});
 test('employee custody and support workflow through real browser and API', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Work email').fill(emails.employee);
@@ -432,9 +460,14 @@ test('support triage filters ownership, category and search without exposing tea
  await expect(page.locator('tbody tr')).toHaveCount(26);
  await page.getByLabel('Ownership',{exact:true}).selectOption('MINE');
  await expect(page.locator('tbody tr')).toHaveCount(2);
+ await page.evaluate(()=>scrollTo(0,0));
+ await expect(page.getByRole('heading',{name:'Support desk',exact:true})).toBeVisible();
+ expect(await page.getByRole('heading',{name:'Support desk',exact:true}).evaluate(el=>el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(48);
  await page.screenshot({path:'/downloads/iac-ticket-triage-desktop.png'});
  await page.setViewportSize({width:390,height:844});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.evaluate(()=>scrollTo(0,0));
+ expect(await page.getByRole('heading',{name:'Support desk',exact:true}).evaluate(el=>el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(48);
  await page.screenshot({path:'/downloads/iac-ticket-triage-mobile.png'});
  const result=await page.request.get('/api/v1/tickets?ownership=UNASSIGNED&q='+tag);expect(result.status()).toBe(200);expect((await result.json()).items.length).toBe(25);
  }finally{await context.close();}

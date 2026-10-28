@@ -12,6 +12,8 @@ See [demo walkthrough](docs/DEMO_HANDOFF_2026_10.md) and [implemented/configurab
 - [Generic single-server Docker deployment](docs/DEPLOY_SINGLE_SERVER.md)
 - [Production operations and release guidance](docs/PRODUCTION.md)
 
+For the complete delivery and meeting setup, start with [Run the manager demo locally](docs/RUN_DEMO_FIRST.md).
+
 ## Start locally
 
 Requirements: Node.js 24, npm, Docker Desktop/Engine. Run in this directory:

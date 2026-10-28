@@ -1,5 +1,7 @@
 # IAC manager demo handoff
 
+Start with [Run the manager demo locally](RUN_DEMO_FIRST.md) for prerequisites, exact setup, first login and access limits.
+
 Implementation checkpoint: 28 October 2026, Asia/Calcutta. This is a single-organization improvement branch, not a production SaaS certification. The full product blueprint remains the release roadmap.
 
 ## Demo path
@@ -91,3 +93,5 @@ Restricted HTTP checkpoint: `node scripts/load-probe.mjs --runtime-role` applies
 Finance queue flexibility: combine review state, free-text search, department and asset type. Filters reset their own server cursor; Load more preserves all filters. Options include inactive masters and legacy asset types actually present in inventory, so historical records remain reachable. Admin/Finance only; no approval policy or ownership permissions changed. API regression checks combined filters, page boundaries, validation/role denials and inactive department history; browser regression walks25to28records then changes type to2records on desktop/mobile.
 
 Support triage flexibility: category and subject/ticket-number search combine with status/priority. Admin and IT can choose Any owner, Assigned to me or Unassigned. Cursor paging and CSV/Excel export use the same active filters. Employee scope stays reporter-only; direct team-ownership requests are rejected. No automatic routing, SLA timer or escalation policy has been invented.
+
+22:52 delivery checkpoint:104/104integration and35/35browser tests passed;27APIunit/62webunit passed. An additional fresh-Admin browser test passes first password login, authenticator enrollment, recovery-code save gate, notice acceptance and second sign-in via recovery. Interactive bootstrap passed in a fresh disposable18migrationdatabase, credentials not logged. The delivery-health browser test now waits for its actual state-filter response before testing pagination after reload; no product behavior was relaxed.

@@ -270,7 +270,11 @@ test('Admin delivery health shows retry evidence without message content and den
   await expect(
     page.getByRole('heading', { name: 'Email delivery health', exact: true }),
   ).toBeVisible();
-  await page.getByLabel('Delivery state').selectOption('DEAD');
+  await Promise.all([
+    page.waitForResponse(r=>r.url().includes('/api/v1/admin/deliveries?state=DEAD')&&r.status()===200),
+    page.getByLabel('Delivery state').selectOption('DEAD'),
+  ]);
+  await expect(page.locator('article').first()).toBeVisible();
   const card = page.locator('article').filter({ hasText: `${tag}-DELIVERY` });
   // Delivery IDs are random UUIDs, not chronological. Accumulated fixtures can
   // put this record on any page; exercise the real pagination rather than
@@ -294,7 +298,11 @@ test('Admin delivery health shows retry evidence without message content and den
   await expect(
     page.getByRole('heading', { name: 'Email delivery health', exact: true }),
   ).toBeVisible();
-  await page.getByLabel('Delivery state').selectOption('DEAD');
+  await Promise.all([
+    page.waitForResponse(r=>r.url().includes('/api/v1/admin/deliveries?state=DEAD')&&r.status()===200),
+    page.getByLabel('Delivery state').selectOption('DEAD'),
+  ]);
+  await expect(page.locator('article').first()).toBeVisible();
   // Delivery IDs are random UUIDs, not chronological. Accumulated fixtures can
   // put this record on any page; exercise the real pagination rather than
   // assuming the newest insertion sorts first.
