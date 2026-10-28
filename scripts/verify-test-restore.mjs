@@ -39,6 +39,8 @@ const tables = [
   'asset_finance',
   'asset_finance_events',
   'finance_invoice_evidence',
+  'workflow_notifications',
+  'workflow_notification_reads',
   'audit_events',
   'notification_outbox',
   'email_deliveries',
@@ -101,6 +103,7 @@ try {
     `SELECT count(*)::int AS n FROM asset_finance f LEFT JOIN assets a ON a.id=f.asset_id WHERE a.id IS NULL`,
     `SELECT count(*)::int AS n FROM asset_finance_events e LEFT JOIN users u ON u.id=e.actor_id WHERE u.id IS NULL`,
     `SELECT count(*)::int AS n FROM finance_invoice_evidence WHERE encode(sha256(content),'hex')<>sha256`,
+    `SELECT count(*)::int AS n FROM workflow_notification_reads r JOIN workflow_notifications n ON n.id=r.notification_id WHERE r.user_id<>n.user_id`,
   ];
   for (const sql of checks)
     if ((await restored.query(sql)).rows[0].n !== 0)

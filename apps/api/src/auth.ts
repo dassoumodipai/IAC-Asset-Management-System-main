@@ -1066,7 +1066,7 @@ export class AuthController {
   @Get('ready') async ready() {
     try {
       const [migration] = await this.auth.db.query(
-        "SELECT name FROM schema_migrations WHERE name='019_invoice_evidence.sql'",
+        "SELECT name FROM schema_migrations WHERE name='021_workflow_read_identity.sql'",
       );
       if (!migration) throw new Error('Required migration missing');
       // Resolve the columns required by this release without exposing data.

@@ -627,3 +627,48 @@ test('invoice apply preserves unchecked manual fields and malformed upload gives
     (await pool.query('SELECT state FROM asset_finance WHERE asset_id=$1', [id])).rows[0].state,
   ).toBe('SUBMITTED');
 });
+
+test('workflow inbox links Finance requests, keeps read state and does not expose another role', async ({
+  page,
+  context,
+}) => {
+  const id = randomUUID();
+  await pool.query(
+    `INSERT INTO assets(id,asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by)VALUES($1,'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Workflow notification browser','Owned','In Store','Good','Low',$2)`,
+    [id, admin.id],
+  );
+  await signIn(context, admin);
+  await page.goto(`/finance/${id}`);
+  await page.getByLabel('Submission reason').fill('Independent invoice review');
+  await page.getByRole('button', { name: 'Submit to Finance', exact: true }).click();
+  await expect(page.getByText('SUBMITTED', { exact: true }).first()).toBeVisible();
+  await signIn(context, finance);
+  await page.goto('/notifications');
+  const [notice] = (
+    await pool.query('SELECT title FROM workflow_notifications WHERE user_id=$1 AND entity_id=$2', [
+      finance.id,
+      id,
+    ])
+  ).rows;
+  const card = page
+    .locator('article')
+    .filter({ has: page.getByRole('heading', { name: notice.title, exact: true }) });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Unread');
+  await page.screenshot({ path: '/downloads/iac-workflow-inbox-desktop.png', fullPage: true });
+  await card.getByRole('button', { name: 'Mark workflow as read' }).click();
+  await expect(card).toContainText('Read');
+  await expect(card.getByRole('button', { name: 'Mark workflow as read' })).toHaveCount(0);
+  await page.reload();
+  await expect(card.getByRole('button', { name: 'Mark workflow as read' })).toHaveCount(0);
+  await card.getByRole('link', { name: 'Open workflow' }).click();
+  await expect(page).toHaveURL(new RegExp(`/finance/${id}$`));
+  await page.goto('/notifications');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(card).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '/downloads/iac-workflow-inbox-mobile.png', fullPage: true });
+  await signIn(context, executive);
+  await page.goto('/notifications');
+  await expect(page.getByRole('heading', { name: notice.title, exact: true })).toHaveCount(0);
+});

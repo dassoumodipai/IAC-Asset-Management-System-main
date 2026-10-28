@@ -204,6 +204,57 @@ describe(
         count,
       );
     });
+    it('Finance notifications persist independently of email dispatch and hide from revoked roles', async () => {
+      const notifications = await db.query(
+        "SELECT n.* FROM workflow_notifications n WHERE n.kind='FINANCE_REVIEW' AND n.user_id=$1",
+        [reviewer.id],
+      );
+      assert(notifications.length > 0);
+      const { NotificationsService } = await import('../src/notifications');
+      const inbox = new NotificationsService(db);
+      const before = await inbox.workflow(req(reviewer));
+      assert(before.items.some((n) => n.kind === 'FINANCE_REVIEW'));
+      assert.equal((await inbox.workflow(req(executive))).total, 0);
+      assert.equal((await call(undefined, '/notifications/workflow')).status, 401);
+      const http = await call(reviewer, '/notifications/workflow?limit=1');
+      assert.equal(http.status, 200);
+      assert.equal(http.body.items.length, 1);
+      assert.equal(
+        (
+          await call(
+            executive,
+            `/notifications/workflow/${http.body.items[0].id}/read`,
+            {},
+            undefined,
+          )
+        ).status,
+        404,
+      );
+      assert.equal(
+        (
+          await call(
+            reviewer,
+            `/notifications/workflow/${http.body.items[0].id}/read`,
+            {},
+            undefined,
+            false,
+          )
+        ).status,
+        403,
+      );
+      assert.equal(
+        (await call(reviewer, `/notifications/workflow/${http.body.items[0].id}/read`, {})).status,
+        201,
+      );
+
+      await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role_code='FINANCE'", [
+        reviewer.id,
+      ]);
+      assert.equal((await inbox.workflow(req(reviewer))).total, 0);
+      await db.query("INSERT INTO user_roles(user_id,role_code)VALUES($1,'FINANCE')", [
+        reviewer.id,
+      ]);
+    });
     it('invoice HTTP enforces session, CSRF, role, version and private binary retrieval', async () => {
       const Excel = (await import('exceljs')).default,
         wb = new Excel.Workbook();

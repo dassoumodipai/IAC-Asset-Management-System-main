@@ -21,7 +21,7 @@ test('fresh migration and concurrent repeated seed preserve exactly four coheren
     db = new Db();
     await migrate(db);
     await migrate(db);
-    assert.equal((await db.query('SELECT count(*) FROM schema_migrations'))[0].count, '19');
+    assert.equal((await db.query('SELECT count(*) FROM schema_migrations'))[0].count, '21');
     await seed(db);
     const first = await db.query('SELECT id,asset_code,asset_type FROM assets ORDER BY asset_type');
     assert.deepEqual(

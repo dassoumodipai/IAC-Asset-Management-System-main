@@ -550,6 +550,15 @@ export class ImportDomain extends TicketDomain {
             [asset.id, assignment.id, req.user.id],
             c,
           );
+          await this.db.workflowNotify(
+            c,
+            `assignment:${assignment.id}:created`,
+            'ASSIGNMENT',
+            assignment.id,
+            [employee.email],
+            `Verify imported asset ${asset.asset_code}`,
+            'Imported current custody needs your acknowledgement.',
+          );
           await this.db.notify(
             c,
             `assignment:${assignment.id}:created`,

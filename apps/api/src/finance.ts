@@ -223,6 +223,13 @@ export class FinanceService {
           subject: `Finance review requested: ${asset.asset_code}`,
           text: `An asset record is ready for independent Finance review. Sign in to review the current version: ${configuration().origin}/finance/${id}\nNo approval is recorded by this notification.`,
         },
+        {
+          kind: 'FINANCE_REVIEW',
+          entityId: id,
+          title: `Finance review requested: ${asset.asset_code}`,
+          message:
+            'Review the current asset version independently. This notification is not approval.',
+        },
       );
     });
     return this.detail(req, id);
@@ -328,6 +335,12 @@ export class FinanceService {
         {
           subject: `Finance review ${action === 'APPROVED' ? 'approved' : 'returned'}: ${asset.asset_code}`,
           text: `Finance has ${action === 'APPROVED' ? 'approved' : 'returned'} this asset record. Sign in to inspect the decision and current record: ${configuration().origin}/finance/${id}`,
+        },
+        {
+          kind: 'FINANCE_RESULT',
+          entityId: id,
+          title: `Finance record ${action.toLowerCase()}: ${asset.asset_code}`,
+          message: 'Open the Finance record to inspect the decision and current values.',
         },
       );
     });

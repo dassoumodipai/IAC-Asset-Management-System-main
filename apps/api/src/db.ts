@@ -81,7 +81,23 @@ export class Db implements OnModuleDestroy {
     template: string,
     recipients: string[],
     data: { subject: string; text: string },
+    workflow?: {
+      kind: 'TICKET' | 'FINANCE_REVIEW' | 'FINANCE_RESULT';
+      entityId: string;
+      title: string;
+      message: string;
+    },
   ): Promise<void> {
+    if (workflow)
+      await this.workflowNotify(
+        client,
+        eventKey,
+        workflow.kind,
+        workflow.entityId,
+        recipients,
+        workflow.title,
+        workflow.message,
+      );
     const rows = await this.query(
       'INSERT INTO notification_outbox(event_key,template,payload) VALUES($1,$2,$3) ON CONFLICT(event_key) DO NOTHING RETURNING id',
       [
@@ -101,6 +117,30 @@ export class Db implements OnModuleDestroy {
         client,
       );
     }
+  }
+  async workflowNotify(
+    client: PoolClient,
+    eventKey: string,
+    kind: 'ASSIGNMENT' | 'TICKET' | 'FINANCE_REVIEW' | 'FINANCE_RESULT',
+    entityId: string,
+    recipients: string[],
+    title: string,
+    message: string,
+  ) {
+    await this.query(
+      `INSERT INTO workflow_notifications(event_key,user_id,kind,entity_id,title,message)
+      SELECT $1,u.id,$2,$3,$4,$5 FROM users u WHERE lower(u.email)=ANY($6::text[]) AND u.state IN ('ACTIVE','INVITED')
+      ON CONFLICT(event_key,user_id)DO NOTHING`,
+      [
+        eventKey,
+        kind,
+        entityId,
+        title,
+        message,
+        [...new Set(recipients.map((v) => v.trim().toLowerCase()))],
+      ],
+      client,
+    );
   }
   async onModuleDestroy() {
     await this.pool.end();

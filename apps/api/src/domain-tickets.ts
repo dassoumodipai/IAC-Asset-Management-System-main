@@ -172,10 +172,22 @@ export class TicketDomain extends AssetDomain {
         photoCount: images.length,
       });
       const recipients = await this.adminRecipients(c);
-      await this.db.notify(c, `ticket:${row.id}:created`, 'TICKET_CREATED', recipients, {
-        subject: `IAC support ticket #${row.ticket_number} created`,
-        text: 'A support ticket has been created. Sign in to the IAC Asset portal to view the ticket.',
-      });
+      await this.db.notify(
+        c,
+        `ticket:${row.id}:created`,
+        'TICKET_CREATED',
+        recipients,
+        {
+          subject: `IAC support ticket #${row.ticket_number} created`,
+          text: 'A support ticket has been created. Sign in to the IAC Asset portal to view the ticket.',
+        },
+        {
+          kind: 'TICKET',
+          entityId: row.id,
+          title: `Support ticket #${row.ticket_number} created`,
+          message: 'A new ticket is ready for support triage.',
+        },
+      );
       return { ...(await this.ticket(req, row.id, c)), notificationState: 'QUEUED' };
     });
   }
@@ -249,10 +261,22 @@ export class TicketDomain extends AssetDomain {
           c,
         );
         const recipients = staff(req.user) ? [reporter.email] : await this.staffRecipients(c);
-        await this.db.notify(c, `ticket-update:${row.id}`, 'TICKET_REPLY', recipients, {
-          subject: `IAC support ticket #${before.ticketNumber} updated`,
-          text: 'A public reply has been added to your support ticket. Sign in to read the reply.',
-        });
+        await this.db.notify(
+          c,
+          `ticket-update:${row.id}`,
+          'TICKET_REPLY',
+          recipients,
+          {
+            subject: `IAC support ticket #${before.ticketNumber} updated`,
+            text: 'A public reply has been added to your support ticket. Sign in to read the reply.',
+          },
+          {
+            kind: 'TICKET',
+            entityId: ticketId,
+            title: `Support ticket #${before.ticketNumber} updated`,
+            message: 'A public reply was added. Open the ticket to read it.',
+          },
+        );
       }
       return { ...camel(row), ticketVersion: after.version };
     });
@@ -289,6 +313,29 @@ export class TicketDomain extends AssetDomain {
       await this.db.audit(c, req.user, 'ticket', ticketId, 'TICKET_OWNER_CHANGED', {
         ownerId: data.ownerId,
       });
+      if (data.ownerId) {
+        const [owner] = await this.db.query(
+          'SELECT email FROM users WHERE id=$1',
+          [data.ownerId],
+          c,
+        );
+        await this.db.notify(
+          c,
+          `ticket:${ticketId}:owner:v${before.version + 1}`,
+          'TICKET_OWNER',
+          [owner.email],
+          {
+            subject: `Support ticket #${before.ticketNumber} assigned to you`,
+            text: 'Open the portal to review your support assignment.',
+          },
+          {
+            kind: 'TICKET',
+            entityId: ticketId,
+            title: `Support ticket #${before.ticketNumber} assigned to you`,
+            message: 'Review the support queue and next action.',
+          },
+        );
+      }
       return this.ticket(req, ticketId, c);
     });
   }
@@ -322,7 +369,7 @@ export class TicketDomain extends AssetDomain {
         from: before.status,
         to: data.status,
       });
-      if (complete) {
+      {
         const [reporter] = await this.db.query(
           'SELECT u.email FROM users u JOIN tickets t ON t.reporter_id=u.id WHERE t.id=$1',
           [ticketId],
@@ -330,12 +377,22 @@ export class TicketDomain extends AssetDomain {
         );
         await this.db.notify(
           c,
-          `ticket:${ticketId}:completed`,
-          'TICKET_COMPLETED',
+          `ticket:${ticketId}:status:v${before.version + 1}`,
+          complete ? 'TICKET_COMPLETED' : 'TICKET_STATUS',
           [reporter.email],
           {
-            subject: `IAC support ticket #${before.ticketNumber} completed`,
-            text: 'Your support ticket was completed. Sign in to review the resolution. For follow-up, create a related ticket.',
+            subject: `IAC support ticket #${before.ticketNumber}: ${data.status}`,
+            text: complete
+              ? 'Your support ticket was completed. Sign in to review the resolution. For follow-up, create a related ticket.'
+              : 'Your support ticket status changed. Sign in to review the current state.',
+          },
+          {
+            kind: 'TICKET',
+            entityId: ticketId,
+            title: `Support ticket #${before.ticketNumber}: ${data.status}`,
+            message: complete
+              ? 'Review the resolution in your ticket.'
+              : 'Review the current status in your ticket.',
           },
         );
       }

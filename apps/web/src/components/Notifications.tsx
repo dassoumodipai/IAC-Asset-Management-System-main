@@ -9,7 +9,7 @@ interface Announcement {
   id: string;
   title: string;
   message: string;
-  path: '/dashboard' | '/assets' | '/tickets' | '/notifications';
+  path: string;
   audience: 'ALL' | 'ADMIN' | 'DEPARTMENT';
   departmentName: string | null;
   createdAt: string;
@@ -52,6 +52,18 @@ export function useUnreadNotificationCount() {
 export function NotificationsPage() {
   const [filter, setFilter] = useState<'ALL' | 'UNREAD'>('ALL');
   const inbox = useNotificationInbox(filter);
+  const workflow = useInfiniteQuery({
+    queryKey: ['workflow-notifications', filter],
+    initialPageParam: '',
+    queryFn: ({ pageParam, signal }) =>
+      api<Inbox>(
+        '/notifications/workflow' + queryString({ filter, cursor: pageParam || undefined }),
+        { signal },
+      ),
+    getNextPageParam: (p) => p.nextCursor ?? undefined,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
   const action = useAction<{ read: boolean }>();
   const visibleItems = inbox.data?.pages.flatMap((page) => page.items) ?? [];
   const counts = inbox.data?.pages[0];
@@ -60,7 +72,7 @@ export function NotificationsPage() {
     <>
       <PageTitle
         title="Notifications"
-        description="Notices from your IT team, shared with your account or department."
+        description="Workflow updates for your account and notices from your IT team. Email delivery is tracked separately."
         action={
           counts?.unreadCount ? (
             <button
@@ -76,12 +88,94 @@ export function NotificationsPage() {
           ) : undefined
         }
       />
+      <Panel title="Workflow updates">
+        <div role="group" aria-label="Filter workflow notifications">
+          <button
+            type="button"
+            className="button secondary small"
+            aria-pressed={filter === 'ALL'}
+            onClick={() => setFilter('ALL')}
+          >
+            All workflow updates
+          </button>
+          <button
+            type="button"
+            className="button secondary small"
+            aria-pressed={filter === 'UNREAD'}
+            onClick={() => setFilter('UNREAD')}
+          >
+            Unread workflow updates
+          </button>
+        </div>
+        <ErrorNotice error={workflow.error} retry={() => void workflow.refetch()} />
+        {workflow.isPending ? <Loading /> : null}
+        <p>
+          {workflow.data?.pages[0]?.unreadCount ?? 0} unread workflow updates. In-app updates do not
+          depend on successful email delivery.
+        </p>
+        {workflow.data?.pages[0]?.unreadCount ? (
+          <button
+            type="button"
+            className="button secondary small"
+            disabled={action.isPending}
+            onClick={() =>
+              action.mutate({ path: '/notifications/workflow/read-all', method: 'POST', body: {} })
+            }
+          >
+            Mark all workflow updates as read
+          </button>
+        ) : null}
+        {workflow.data?.pages
+          .flatMap((p) => p.items)
+          .map((item) => (
+            <article className="notification-card" key={item.id}>
+              <h2>{item.title}</h2>
+              <p>{item.message}</p>
+              <p className="muted">
+                {new Date(item.createdAt).toLocaleString()} · {item.read ? 'Read' : 'Unread'}
+              </p>
+              <div className="notification-actions">
+                {!item.read ? (
+                  <button
+                    type="button"
+                    className="button text small"
+                    disabled={action.isPending}
+                    onClick={() =>
+                      action.mutate({
+                        path: `/notifications/workflow/${item.id}/read`,
+                        method: 'POST',
+                        body: {},
+                      })
+                    }
+                  >
+                    Mark workflow as read
+                  </button>
+                ) : null}
+                <Link className="button secondary small" to={item.path}>
+                  Open workflow
+                </Link>
+              </div>
+            </article>
+          ))}
+        {workflow.data?.pages[0]?.total === 0 ? (
+          <p>No workflow updates visible for your current access.</p>
+        ) : null}
+        {workflow.hasNextPage ? (
+          <button
+            className="button secondary"
+            disabled={workflow.isFetchingNextPage}
+            onClick={() => void workflow.fetchNextPage()}
+          >
+            Load more workflow updates
+          </button>
+        ) : null}
+      </Panel>
       <ErrorNotice error={inbox.error} retry={() => void inbox.refetch()} />
       <ErrorNotice error={action.error} />
       {inbox.isPending ? <Loading label="Loading notifications…" /> : null}
       {counts && counts.total === 0 ? (
         <Panel className="notification-empty-panel">
-          <Empty title="No announcements yet">
+          <Empty title="No team announcements yet">
             New messages from your IT team will appear here.
           </Empty>
         </Panel>

@@ -218,3 +218,7 @@ Deactivate it with `PATCH /master-data/CATEGORY/Therapy%20Devices`, `If-Match: "
 - Finance review accepts optional `invoiceEvidenceId` for a same-asset retained file. Approval history records its immutable ID/hash.
 
 See `INVOICE_EVIDENCE.md` for formats, limits, review and operational gates.
+
+## Workflow inbox
+
+`GET /notifications/workflow` accepts `filter=ALL|UNREAD`, `limit` (1-100) and opaque `cursor`. Returns account-scoped workflow notices with actual permitted target paths, counts and `nextCursor`. `POST /notifications/workflow/:id/read` and `POST /notifications/workflow/read-all` require CSRF. Repeated reads are idempotent; another user's or currently inaccessible notice is 404. `/notifications/unread-count` includes announcements and workflows. See `WORKFLOW_NOTIFICATIONS.md` for recipient rules, event coverage and limits.
