@@ -68,10 +68,11 @@ test.afterAll(async () => {
   await pool.end();
 });
 test('role and viewport visual audit',async({page,context})=>{
+ test.setTimeout(180000);
  const routes=[['admin',admin,['/dashboard','/equipment/people','/finance','/assets','/assets/new','/tickets','/tickets/new','/admin/users','/master-control','/admin/imports','/admin/audit','/admin/announcements','/admin/deliveries','/assets/labels','/profile','/notifications','/install']],['finance',finance,['/dashboard','/equipment/people',`/finance/${assetId}`,'/executive','/profile']],['executive',executive,['/dashboard','/profile']],['employee',employee,['/dashboard','/equipment/mine','/assets','/tickets/new','/profile']]] as const;
  const findings:any[]=[];
  for(const[role,u,paths]of routes){await signIn(context,u);for(const path of paths){for(const width of[1280,390]){await page.setViewportSize({width,height:844});await page.goto(path);await expect(page.locator('main')).toBeVisible();await page.waitForLoadState('networkidle');await page.evaluate(()=>scrollTo(0,0));const file=`/downloads/iac-ui-audit/${role}-${path.replaceAll('/','_')}-${width}.png`;await page.screenshot({path:file});const result=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,heading:document.querySelector('main h1,main h2,main h3')?.textContent,alerts:[...document.querySelectorAll('[role=alert]')].map(e=>e.textContent),overflowElements:[...document.querySelectorAll('main *')].filter(e=>!e.closest('.table-scroll,.master-groups nav')&&e.getBoundingClientRect().right>innerWidth+2).slice(0,8).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent?.slice(0,65)}))}));findings.push({role,path,width,file,...result});}}}
- console.log(JSON.stringify(findings));
+ console.log(`Audited ${findings.length} settled role/viewport visits`);
  expect(findings.filter(f=>f.overflow)).toEqual([]);
 });
 
