@@ -262,34 +262,37 @@ export class FinanceService {
   }
   async executive(req: AuthRequest) {
     requireRole(req, 'ADMIN', 'FINANCE', 'EXECUTIVE');
-    const [row] = await this.db
-      .query(`SELECT now() AS as_of,count(*)::int AS total_assets,count(*) FILTER(WHERE a.status='Assigned')::int AS assigned_assets,
+    return this.db.tx(async (c) => {
+      await this.db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY', [], c);
+      const [row] = await this.db
+        .query(`SELECT now() AS as_of,count(*)::int AS total_assets,count(*) FILTER(WHERE a.status='Assigned')::int AS assigned_assets,
       count(*) FILTER(WHERE f.state='SUBMITTED')::int AS pending_reviews,count(*) FILTER(WHERE f.state='RETURNED')::int AS returned_reviews,
       count(*) FILTER(WHERE f.asset_id IS NULL)::int AS unsubmitted_assets,count(*) FILTER(WHERE f.approved_at IS NOT NULL)::int AS approved_assets,
       coalesce(sum(f.approved_cost) FILTER(WHERE f.approved_at IS NOT NULL),0)::text AS approved_acquisition_cost,
       count(*) FILTER(WHERE a.status IN ('Lost','Stolen'))::int AS missing_assets,
       count(*) FILTER(WHERE a.warranty_expiry BETWEEN current_date AND current_date+30)::int AS warranty_expiring
       FROM assets a LEFT JOIN asset_finance f ON f.asset_id=a.id`);
-    const [tickets] = await this.db.query(
-      `SELECT count(*) FILTER(WHERE status<>'COMPLETED')::int AS open_tickets,count(*) FILTER(WHERE status<>'COMPLETED' AND priority='HIGH')::int AS high_priority_open FROM tickets`,
-    );
-    const departments = await this.db.query(
-      `SELECT coalesce(d.name,'Not set') AS department,count(*)::int AS asset_count,count(*) FILTER(WHERE f.approved_at IS NOT NULL)::int AS approved_count,coalesce(sum(f.approved_cost) FILTER(WHERE f.approved_at IS NOT NULL),0)::text AS approved_cost FROM assets a LEFT JOIN departments d ON d.id=a.department_id LEFT JOIN asset_finance f ON f.asset_id=a.id GROUP BY d.name ORDER BY count(*) DESC,coalesce(d.name,'Not set') LIMIT 25`,
-    );
-    return {
-      ...camel(row),
-      ...camel(tickets),
-      departments: departments.map(camel),
-      currency: 'INR',
-      definitions: {
-        approvedAcquisitionCost:
-          'Sum of latest Finance-approved INR acquisition costs, including the last approved value while an amendment is pending. Not net book value, depreciation, cash spend or budget variance.',
-        approvedAssets:
-          'Assets with at least one Finance approval; pending amendments retain the last approved snapshot.',
-        scope:
-          'Organization-wide, all asset statuses. Department breakdown shows the largest 25 groups. No employee identities or private ticket text.',
-      },
-    };
+      const [tickets] = await this.db.query(
+        `SELECT count(*) FILTER(WHERE status<>'COMPLETED')::int AS open_tickets,count(*) FILTER(WHERE status<>'COMPLETED' AND priority='HIGH')::int AS high_priority_open FROM tickets`,
+      );
+      const departments = await this.db.query(
+        `SELECT coalesce(d.name,'Not set') AS department,count(*)::int AS asset_count,count(*) FILTER(WHERE f.approved_at IS NOT NULL)::int AS approved_count,coalesce(sum(f.approved_cost) FILTER(WHERE f.approved_at IS NOT NULL),0)::text AS approved_cost FROM assets a LEFT JOIN departments d ON d.id=a.department_id LEFT JOIN asset_finance f ON f.asset_id=a.id GROUP BY d.name ORDER BY count(*) DESC,coalesce(d.name,'Not set') LIMIT 25`,
+      );
+      return {
+        ...camel(row),
+        ...camel(tickets),
+        departments: departments.map(camel),
+        currency: 'INR',
+        definitions: {
+          approvedAcquisitionCost:
+            'Sum of latest Finance-approved INR acquisition costs, including the last approved value while an amendment is pending. Not net book value, depreciation, cash spend or budget variance.',
+          approvedAssets:
+            'Assets with at least one Finance approval; pending amendments retain the last approved snapshot.',
+          scope:
+            'Organization-wide, all asset statuses. Department breakdown shows the largest 25 groups. No employee identities or private ticket text.',
+        },
+      };
+    });
   }
 }
 @Controller('finance')

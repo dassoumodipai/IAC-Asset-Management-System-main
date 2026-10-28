@@ -344,6 +344,47 @@ describe(
       assert.equal(after.assetVersion, before.assetVersion);
       assert.deepEqual(after.history, before.history);
     });
+    it('executive totals and department breakdown share one database snapshot during writes', async () => {
+      const original = db.query.bind(db);
+      let inserted = false;
+      const departmentName = `snapshot-${randomUUID()}`;
+      db.query = async (sql: string, values: any[] = [], client?: any) => {
+        const rows = await original(sql, values, client);
+        if (!inserted && sql.includes('AS total_assets')) {
+          inserted = true;
+          // A separate committed writer lands between the summary queries.
+          const writer = await db.pool.connect();
+          try {
+            const [{ id }] = (
+              await writer.query('INSERT INTO departments(code,name) VALUES($1,$1) RETURNING id', [
+                departmentName,
+              ])
+            ).rows;
+            await writer.query(
+              `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,department_id,created_by)
+              VALUES('IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Synthetic snapshot race','Owned','In Store','Good','Low',$1,$2)`,
+              [id, admin.id],
+            );
+          } finally {
+            writer.release();
+          }
+        }
+        return rows;
+      };
+      let snapshot: any;
+      try {
+        snapshot = await finance.executive(req(executive));
+      } finally {
+        db.query = original;
+      }
+      assert.equal(inserted, true);
+      assert.equal(
+        snapshot.departments.some((d: any) => d.department === departmentName),
+        false,
+      );
+      const now = await finance.executive(req(executive));
+      assert.equal(now.totalAssets, snapshot.totalAssets + 1);
+    });
     it('pages full Finance evidence with tied microsecond timestamps and asset-scoped cursors', async () => {
       await db.query(
         `INSERT INTO asset_finance_events(asset_id,action,actor_id,reason,finance_version,occurred_at)

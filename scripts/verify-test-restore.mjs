@@ -11,6 +11,7 @@ const source = new URL(process.env.TEST_DATABASE_URL || 'invalid:');
 if (
   !['postgres:', 'postgresql:'].includes(source.protocol) ||
   !source.pathname.endsWith('_test') ||
+  source.search !== '' ||
   !['127.0.0.1', 'localhost', '[::1]'].includes(source.hostname)
 )
   throw new Error('Restore drill requires a loopback isolated _test database');
@@ -47,6 +48,7 @@ const tables = [
 function pg(command, url, args) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
+    timeout: 120000,
     env: {
       ...process.env,
       PGHOST: url.hostname,

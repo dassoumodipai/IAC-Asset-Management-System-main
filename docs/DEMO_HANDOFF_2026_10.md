@@ -42,7 +42,7 @@ For a synthetic real-API recorded walkthrough, set `IAC_RECORD_DEMO=1` when runn
 
 ## Verification evidence
 
-At the 22:12 checkpoint: 100 database/API integration tests, 27 API unit tests, 62 web unit tests and all 33 Chrome browser tests passed. Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
+At the 22:17 checkpoint: 101 database/API integration tests, 27 API unit tests, 62 web unit tests and all 33 Chrome browser tests passed. Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
 
 Production dependency audit: zero reported vulnerabilities at the checkpoint after Nodemailer update and compatible body-parser/multer overrides. Full audit retains four low-severity development dependency findings. Audit output is a point-in-time advisory check, not a security guarantee.
 
@@ -69,3 +69,5 @@ The review workflow is fork -> feature branch -> pull request -> owner review. D
 Finance history now has an asset-scoped cursor API and an earlier-events control. The integration regression walks 57 older tied-timestamp events without duplicates or omissions. The restricted iac_runtime test executes actual Finance submission/independent approval and verifies audit writes while denying evidence updates/deletes. This is not complete runtime-role coverage of every API.
 
 Recovery/readiness checkpoint: disposable synthetic PostgreSQL14 logical restore passed complete-row digests for16coretables, custody/Finance integrity and immutable-evidence mutation rejection. New readiness endpoint checks required release schema and returns generic503 on failure. No production restore/PITR or PostgreSQL17 container verification is claimed.
+
+Reproducibility checkpoint: actual tracked-source ZIP installed with `npm ci` into a clean directory, fresh setup generated private defaults, clean build/typecheck passed,18migrations applied to a fresh disposable database and the second migration run applied0. All current checks also pass under Node24.22.1. Executive summary queries now run in a read-only repeatable-read transaction, so totals/tickets/departments use the same snapshot during concurrent writes.
