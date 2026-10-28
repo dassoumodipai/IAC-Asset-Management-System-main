@@ -138,14 +138,149 @@ test('concurrent worker claims do not send the same queued delivery twice', asyn
   }
 });
 
-test('Finance mail checks current role at dispatch and never sends to revoked recipients',async()=>{
- const id=randomUUID(),email=`finance-worker-${id}@example.org`;
- await db.query("INSERT INTO users(id,email,display_name,state,email_verified_at) VALUES($1,$2,'Synthetic Finance worker','ACTIVE',now())",[id,email]);
- await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'FINANCE')",[id]);
- async function queued(){const key=`finance-worker:${randomUUID()}`;await db.tx(c=>db.notify(c,key,'FINANCE_SUBMITTED',[email],{subject:'Synthetic Finance review',text:'Local fake SMTP only'}));const[row]=await db.query('SELECT d.id FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',[key]);await db.query("UPDATE email_deliveries SET next_attempt_at='1900-01-01' WHERE id=$1",[row.id]);return row.id;}
- const revoked=await queued();await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role_code='FINANCE'",[id]);await dispatchOnce(db);
- assert.deepEqual((await db.query('SELECT state,last_error_code,provider_message_id FROM email_deliveries WHERE id=$1',[revoked]))[0],{state:'DEAD',last_error_code:'RECIPIENT_INELIGIBLE',provider_message_id:null});
- assert.equal((await db.query('SELECT count(*)::int n FROM email_attempts WHERE delivery_id=$1',[revoked]))[0].n,0);
- assert.ok(await checkSmtpAvailable(),'Finance acceptance requires local fake mail sink');
- await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'FINANCE')",[id]);const valid=await queued();await dispatchOnce(db);assert.equal((await db.query('SELECT state FROM email_deliveries WHERE id=$1',[valid]))[0].state,'ACCEPTED');
+test('Finance mail checks current role at dispatch and never sends to revoked recipients', async () => {
+  const id = randomUUID(),
+    email = `finance-worker-${id}@example.org`;
+  await db.query(
+    "INSERT INTO users(id,email,display_name,state,email_verified_at) VALUES($1,$2,'Synthetic Finance worker','ACTIVE',now())",
+    [id, email],
+  );
+  await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'FINANCE')", [id]);
+  async function queued() {
+    const key = `finance-worker:${randomUUID()}`;
+    await db.tx((c) =>
+      db.notify(c, key, 'FINANCE_SUBMITTED', [email], {
+        subject: 'Synthetic Finance review',
+        text: 'Local fake SMTP only',
+      }),
+    );
+    const [row] = await db.query(
+      'SELECT d.id FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
+      [key],
+    );
+    await db.query("UPDATE email_deliveries SET next_attempt_at='1900-01-01' WHERE id=$1", [
+      row.id,
+    ]);
+    return row.id;
+  }
+  const revoked = await queued();
+  await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role_code='FINANCE'", [id]);
+  await dispatchOnce(db);
+  assert.deepEqual(
+    (
+      await db.query(
+        'SELECT state,last_error_code,provider_message_id FROM email_deliveries WHERE id=$1',
+        [revoked],
+      )
+    )[0],
+    { state: 'DEAD', last_error_code: 'RECIPIENT_INELIGIBLE', provider_message_id: null },
+  );
+  assert.equal(
+    (
+      await db.query('SELECT count(*)::int n FROM email_attempts WHERE delivery_id=$1', [revoked])
+    )[0].n,
+    0,
+  );
+  assert.ok(await checkSmtpAvailable(), 'Finance acceptance requires local fake mail sink');
+  await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'FINANCE')", [id]);
+  const valid = await queued();
+  await dispatchOnce(db);
+  assert.equal(
+    (await db.query('SELECT state FROM email_deliveries WHERE id=$1', [valid]))[0].state,
+    'ACCEPTED',
+  );
+});
+
+test('superseded invitation is suppressed while its replacement is dispatched', async () => {
+  assert.ok(await checkSmtpAvailable(), 'Invitation dispatch requires local fake mail sink');
+  const { AuthService } = await import('../src/auth');
+  const auth = new AuthService(db);
+  const id = randomUUID(),
+    email = `reinvite-worker-${id}@example.org`;
+  await db.query(
+    "INSERT INTO users(id,email,display_name) VALUES($1,$2,'Synthetic invitation recipient')",
+    [id, email],
+  );
+  await db.tx((c) => auth.issue(c, { id, email }, 'INVITE'));
+  const first = (
+    await db.query(
+      'SELECT d.id,o.id AS outbox_id FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE d.recipient=$1',
+      [email],
+    )
+  )[0];
+  await db.tx((c) => auth.issue(c, { id, email }, 'INVITE'));
+  const replacement = (
+    await db.query('SELECT id FROM email_deliveries WHERE recipient=$1 AND id<>$2', [
+      email,
+      first.id,
+    ])
+  )[0];
+  await db.query("UPDATE email_deliveries SET next_attempt_at='1900-01-01' WHERE id=$1", [
+    first.id,
+  ]);
+  await dispatchOnce(db);
+  const stale = (
+    await db.query(
+      'SELECT state,last_error_code,provider_message_id FROM email_deliveries WHERE id=$1',
+      [first.id],
+    )
+  )[0];
+  assert.deepEqual(stale, {
+    state: 'DEAD',
+    last_error_code: 'AUTH_TOKEN_INACTIVE',
+    provider_message_id: null,
+  });
+  assert.equal(
+    (
+      await db.query('SELECT count(*)::int n FROM email_attempts WHERE delivery_id=$1', [first.id])
+    )[0].n,
+    0,
+  );
+  await db.query("UPDATE email_deliveries SET next_attempt_at='1900-01-01' WHERE id=$1", [
+    replacement.id,
+  ]);
+  await dispatchOnce(db);
+  assert.equal(
+    (await db.query('SELECT state FROM email_deliveries WHERE id=$1', [replacement.id]))[0].state,
+    'ACCEPTED',
+  );
+});
+
+test('consumed verification, reset and email-change links are not dispatched', async () => {
+  const { AuthService } = await import('../src/auth');
+  const auth = new AuthService(db);
+  for (const purpose of ['VERIFY_EMAIL', 'RESET_PASSWORD', 'EMAIL_CHANGE'] as const) {
+    const id = randomUUID(),
+      email = `consumed-worker-${id}@example.org`;
+    await db.query(
+      "INSERT INTO users(id,email,display_name)VALUES($1,$2,'Synthetic consumed token')",
+      [id, email],
+    );
+    await db.tx((c) =>
+      purpose === 'EMAIL_CHANGE'
+        ? auth.issueEmailChange(c, { id }, email)
+        : auth.issue(c, { id, email }, purpose),
+    );
+    const [row] = await db.query('SELECT id FROM email_deliveries WHERE recipient=$1', [email]);
+    await db.query('UPDATE auth_tokens SET consumed_at=now() WHERE user_id=$1', [id]);
+    await db.query("UPDATE email_deliveries SET next_attempt_at='1900-01-01' WHERE id=$1", [
+      row.id,
+    ]);
+    await dispatchOnce(db);
+    assert.deepEqual(
+      (
+        await db.query(
+          'SELECT state,last_error_code,provider_message_id FROM email_deliveries WHERE id=$1',
+          [row.id],
+        )
+      )[0],
+      { state: 'DEAD', last_error_code: 'AUTH_TOKEN_INACTIVE', provider_message_id: null },
+    );
+    assert.equal(
+      (
+        await db.query('SELECT count(*)::int n FROM email_attempts WHERE delivery_id=$1', [row.id])
+      )[0].n,
+      0,
+    );
+  }
 });

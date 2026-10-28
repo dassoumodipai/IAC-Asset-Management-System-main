@@ -29,16 +29,48 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
     return row;
   });
   if (!delivery) return false;
-  const [outbox] = await db.query('SELECT payload,template FROM notification_outbox WHERE id=$1', [
-    delivery.outbox_id,
-  ]);
-  if (['FINANCE_SUBMITTED','FINANCE_APPROVED','FINANCE_RETURNED'].includes(outbox.template)) {
+  const [outbox] = await db.query(
+    'SELECT payload,template,event_key FROM notification_outbox WHERE id=$1',
+    [delivery.outbox_id],
+  );
+  // A resend or completed authentication flow invalidates its previous link before
+  // the original outbox expiry. Never dispatch a link already known to be inactive.
+  if (['INVITE', 'VERIFY_EMAIL', 'RESET_PASSWORD', 'EMAIL_CHANGE'].includes(outbox.template)) {
+    const [active] = await db.query(
+      "SELECT 1 FROM auth_tokens WHERE 'auth:'||id::text=$1 AND purpose=$2 AND consumed_at IS NULL AND expires_at>now()",
+      [outbox.event_key, outbox.template],
+    );
+    if (!active) {
+      await db.tx(async (c) => {
+        const stopped = await db.query(
+          "UPDATE email_deliveries SET state='DEAD',last_error_code='AUTH_TOKEN_INACTIVE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED' RETURNING id",
+          [delivery.id, lease],
+          c,
+        );
+        if (stopped.length)
+          await db.audit(c, null, 'EMAIL_DELIVERY', delivery.id, 'EMAIL_AUTH_TOKEN_INACTIVE', {
+            template: outbox.template,
+          });
+      });
+      return true;
+    }
+  }
+  if (['FINANCE_SUBMITTED', 'FINANCE_APPROVED', 'FINANCE_RETURNED'].includes(outbox.template)) {
     const role = outbox.template === 'FINANCE_SUBMITTED' ? 'FINANCE' : 'ADMIN';
-    const [eligible] = await db.query(`SELECT 1 FROM users u JOIN user_roles r ON r.user_id=u.id WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND r.role_code=$2`, [delivery.recipient,role]);
+    const [eligible] = await db.query(
+      `SELECT 1 FROM users u JOIN user_roles r ON r.user_id=u.id WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND r.role_code=$2`,
+      [delivery.recipient, role],
+    );
     if (!eligible) {
-      await db.tx(async c=>{
-        await db.query("UPDATE email_deliveries SET state='DEAD',last_error_code='RECIPIENT_INELIGIBLE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED'",[delivery.id,lease],c);
-        await db.audit(c,null,'EMAIL_DELIVERY',delivery.id,'EMAIL_RECIPIENT_INELIGIBLE',{template:outbox.template});
+      await db.tx(async (c) => {
+        await db.query(
+          "UPDATE email_deliveries SET state='DEAD',last_error_code='RECIPIENT_INELIGIBLE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED'",
+          [delivery.id, lease],
+          c,
+        );
+        await db.audit(c, null, 'EMAIL_DELIVERY', delivery.id, 'EMAIL_RECIPIENT_INELIGIBLE', {
+          template: outbox.template,
+        });
       });
       return true;
     }
