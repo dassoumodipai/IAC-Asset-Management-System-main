@@ -75,6 +75,40 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
       return true;
     }
   }
+  if (
+    [
+      'TICKET_CREATED',
+      'TICKET_REPLY',
+      'TICKET_OWNER',
+      'TICKET_STATUS',
+      'TICKET_COMPLETED',
+    ].includes(outbox.template)
+  ) {
+    // Bind the queued address to its original workflow account. Reused email addresses
+    // must not inherit another account's pending notification.
+    const [eligible] = await db.query(
+      `SELECT 1 FROM workflow_notifications n JOIN users u ON u.id=n.user_id JOIN tickets t ON t.id=n.entity_id
+       WHERE n.event_key=$1 AND n.kind='TICKET' AND u.email=$2 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
+       AND (CASE WHEN $3='TICKET_CREATED' THEN EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='ADMIN')
+         WHEN $3='TICKET_OWNER' THEN t.owner_id=u.id AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code IN ('ADMIN','IT_ADMIN'))
+         ELSE t.reporter_id=u.id OR EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code IN ('ADMIN','IT_ADMIN')) END)`,
+      [outbox.event_key, delivery.recipient, outbox.template],
+    );
+    if (!eligible) {
+      await db.tx(async (c) => {
+        const stopped = await db.query(
+          "UPDATE email_deliveries SET state='DEAD',last_error_code='RECIPIENT_INELIGIBLE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED' RETURNING id",
+          [delivery.id, lease],
+          c,
+        );
+        if (stopped.length)
+          await db.audit(c, null, 'EMAIL_DELIVERY', delivery.id, 'EMAIL_RECIPIENT_INELIGIBLE', {
+            template: outbox.template,
+          });
+      });
+      return true;
+    }
+  }
   let accepted = false,
     errorCode = 'SMTP_FAILURE',
     sentMessageId = `<${delivery.id}@iac.portal>`;

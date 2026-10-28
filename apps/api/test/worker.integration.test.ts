@@ -284,3 +284,90 @@ test('consumed verification, reset and email-change links are not dispatched', a
     );
   }
 });
+
+test('ticket dispatch binds the original account, current access and current owner', async () => {
+  assert.ok(await checkSmtpAvailable());
+  const reporter = randomUUID(),
+    support = randomUUID(),
+    email = `ticket-worker-${support}@example.org`;
+  for (const [id, address] of [
+    [reporter, `reporter-${reporter}@example.org`],
+    [support, email],
+  ])
+    await db.query(
+      "INSERT INTO users(id,email,display_name,state,email_verified_at)VALUES($1,$2,'Synthetic ticket worker','ACTIVE',now())",
+      [id, address],
+    );
+  await db.query("INSERT INTO user_roles(user_id,role_code)VALUES($1,'IT_ADMIN')", [support]);
+  const [ticket] = await db.query(
+    "INSERT INTO tickets(reporter_id,owner_id,subject,description,category,priority)VALUES($1,$2,'Synthetic worker scope','Synthetic','HARDWARE','LOW')RETURNING id",
+    [reporter, support],
+  );
+  async function queue(template = 'TICKET_REPLY') {
+    const key = `ticket-worker:${randomUUID()}`;
+    await db.tx((c) =>
+      db.notify(
+        c,
+        key,
+        template,
+        [email],
+        { subject: 'Synthetic ticket check', text: 'Local Mailpit only' },
+        { kind: 'TICKET', entityId: ticket.id, title: 'Synthetic', message: 'Synthetic' },
+      ),
+    );
+    const [row] = await db.query(
+      'SELECT d.id FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
+      [key],
+    );
+    await db.query("UPDATE email_deliveries SET next_attempt_at='1900-01-01' WHERE id=$1", [
+      row.id,
+    ]);
+    return row.id;
+  }
+  async function check(id: string, state = 'DEAD') {
+    await dispatchOnce(db);
+    const [row] = await db.query(
+      'SELECT state,last_error_code,provider_message_id FROM email_deliveries WHERE id=$1',
+      [id],
+    );
+    assert.equal(row.state, state);
+    if (state === 'DEAD') {
+      assert.equal(row.last_error_code, 'RECIPIENT_INELIGIBLE');
+      assert.equal(row.provider_message_id, null);
+      assert.equal(
+        (await db.query('SELECT count(*)::int n FROM email_attempts WHERE delivery_id=$1', [id]))[0]
+          .n,
+        0,
+      );
+    }
+  }
+  const revoked = await queue();
+  await db.query('DELETE FROM user_roles WHERE user_id=$1', [support]);
+  await check(revoked);
+  await db.query("INSERT INTO user_roles(user_id,role_code)VALUES($1,'IT_ADMIN')", [support]);
+  const disabled = await queue();
+  await db.query("UPDATE users SET state='DISABLED' WHERE id=$1", [support]);
+  await check(disabled);
+  await db.query("UPDATE users SET state='ACTIVE' WHERE id=$1", [support]);
+  const staleOwner = await queue('TICKET_OWNER');
+  await db.query('UPDATE tickets SET owner_id=NULL WHERE id=$1', [ticket.id]);
+  await check(staleOwner);
+  const reused = await queue();
+  await db.query('UPDATE users SET email=$2 WHERE id=$1', [
+    support,
+    `changed-${support}@example.org`,
+  ]);
+  const replacement = randomUUID();
+  await db.query(
+    "INSERT INTO users(id,email,display_name,state,email_verified_at)VALUES($1,$2,'Replacement identity','ACTIVE',now())",
+    [replacement, email],
+  );
+  await db.query("INSERT INTO user_roles(user_id,role_code)VALUES($1,'IT_ADMIN')", [replacement]);
+  await check(reused);
+  await db.query('UPDATE users SET email=$2 WHERE id=$1', [
+    replacement,
+    `replacement-${replacement}@example.org`,
+  ]);
+  await db.query('UPDATE users SET email=$2 WHERE id=$1', [support, email]);
+  await check(await queue(), 'ACCEPTED');
+});

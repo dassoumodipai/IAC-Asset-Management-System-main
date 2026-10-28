@@ -19,3 +19,7 @@ No historical notifications are backfilled from old email. New workflow records 
 ## Related scanner verification
 
 The camera scanner is a full-viewport body-level dialog, independent of the page header's stacking context. A live browser regression generates a QR, supplies its pixels through a simulated video MediaStream, runs the real QR decoder and opens the server-backed asset scan page. It does not call the development decoded-result hook. Physical camera, printed-label conditions and mobile hardware are still unverified. A simulated camera in a walkthrough must be identified as simulated, not represented as a real phone scan.
+
+## Queued ticket email authorization
+
+Immediately before SMTP, ticket mail is matched to the original workflow account, its current verified address and active state, and current ticket access. Creation/triage mail still requires Admin; an owner-assignment email additionally requires the recipient to remain the current Admin/IT owner. Disabled accounts, revoked support access, transferred ownership and a reassigned email address are suppressed without an SMTP attempt. Existing pending ticket mail without an original workflow binding is suppressed rather than guessed. This does not revoke email already accepted by SMTP and cannot guarantee provider inbox delivery. Authorization is checked just before sending, not held as a database lock across an external network call.
