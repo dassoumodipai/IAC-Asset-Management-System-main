@@ -241,7 +241,7 @@ test('Finance mobile queue, errors and server unread history remain usable', asy
     [ids.slice(1), finance.id],
   );
   await page.goto('/notifications');
-  await page.getByRole('button', { name: /^Unread/ }).click();
+  await page.getByRole('button', { name: /^Unread \d+$/ }).click();
   await expect(page.getByRole('heading', { name: `${tag} notice 0`, exact: true })).toBeVisible();
   await page.screenshot({ path: '/downloads/iac-old-unread-mobile.png', fullPage: true });
 });
