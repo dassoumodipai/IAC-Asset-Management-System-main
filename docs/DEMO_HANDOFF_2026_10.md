@@ -75,3 +75,5 @@ Reproducibility checkpoint: actual tracked-source ZIP installed with `npm ci` in
 Setup regression: `npm run test:setup` checks private local file generation/preservation and production-helper validation/no-secret-output. The production helper is Unix/bash-based; Windows users need WSL or a separately approved setup route. No deployment has been executed.
 
 SMTP test safety: required fake-mail dependency failures now fail acceptance/recovery tests rather than returning early as if they passed. A deliberate loopback-port1 run failed with the expected dependency error, then the complete101test suite passed with Mailpit available. Test SMTP settings override operational credentials.
+
+Compiled-runtime smoke: in a separate clean directory, production-only `npm ci --omit=dev --ignore-scripts` completed and native Argon2 hash/verify plus Sharp image processing passed. Compiled API started against the synthetic database and `/api/v1/ready` returned200. This checks the installed production dependency surface on this Linux/Node24 environment, not the unboot-tested Docker image or real HTTPS login.
