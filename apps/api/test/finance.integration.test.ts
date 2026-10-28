@@ -124,22 +124,85 @@ describe(
     after(async () => {
       await app?.close();
     });
-    it('queues version-keyed Finance messages atomically with scoped recipients and minimal encrypted content',async()=>{
-      const a=await domain.createAsset(req(admin),{category:asset.category,assetType:asset.assetType,description:'Synthetic mail-loop asset',ownershipType:asset.ownershipType,status:'In Store',condition:asset.condition,riskLevel:asset.riskLevel,amcApplies:false});
-      const submit=()=>finance.submit(req(admin,a.version),a.id,{reason:'Private invoice reason must stay inside portal'});
+    it('queues version-keyed Finance messages atomically with scoped recipients and minimal encrypted content', async () => {
+      const a = await domain.createAsset(req(admin), {
+        category: asset.category,
+        assetType: asset.assetType,
+        description: 'Synthetic mail-loop asset',
+        ownershipType: asset.ownershipType,
+        status: 'In Store',
+        condition: asset.condition,
+        riskLevel: asset.riskLevel,
+        amcApplies: false,
+      });
+      const submit = () =>
+        finance.submit(req(admin, a.version), a.id, {
+          reason: 'Private invoice reason must stay inside portal',
+        });
       await submit();
-      const events=()=>db.query("SELECT o.*,d.recipient FROM notification_outbox o LEFT JOIN email_deliveries d ON d.outbox_id=o.id WHERE o.event_key LIKE $1 ORDER BY o.event_key,d.recipient",[`finance:${a.id}:%`]);
-      let rows=await events();assert.ok(rows.some(r=>r.recipient===reviewer.email));assert.ok(rows.some(r=>r.recipient===second.email));assert.ok(!rows.some(r=>[admin.email,executive.email,employee.email,itAdmin.email].includes(r.recipient)));
-      const decoded=JSON.parse(decrypt(rows[0].payload.ciphertext,'AUTH_MAIL_ENCRYPTION_KEY'));assert.ok(decoded.text.includes('/finance/'+a.id));assert.ok(!JSON.stringify(decoded).includes('Private invoice reason'));assert.ok(!JSON.stringify(rows[0].payload).includes(a.assetCode));
-      const before=rows.length;await assert.rejects(submit);assert.equal((await events()).length,before);
-      let d=await finance.detail(req(reviewer),a.id);await finance.review(req(reviewer,d.financeVersion),a.id,{decision:'RETURN',reason:'Synthetic return reason'});
-      rows=await events();const returned=rows.filter(r=>r.template==='FINANCE_RETURNED');assert.equal(returned.length,1);assert.equal(returned[0].recipient,admin.email);
-      d=await finance.detail(req(admin),a.id);await finance.submit(req(admin,d.assetVersion),a.id,{reason:'Corrected synthetic record'});d=await finance.detail(req(reviewer),a.id);
-      await finance.review(req(reviewer,d.financeVersion),a.id,approval);rows=await events();assert.equal(rows.filter(r=>r.template==='FINANCE_APPROVED').length,1);
-      const approved=await finance.detail(req(admin),a.id);const count=(await db.query('SELECT count(*)::int n FROM asset_finance_events WHERE asset_id=$1',[a.id]))[0].n;
-      const original=db.notify.bind(db);db.notify=async()=>{throw Error('Synthetic queue failure');};
-      try{await assert.rejects(()=>finance.submit(req(admin,approved.assetVersion),a.id,{reason:'Atomic rollback check'}));}finally{db.notify=original;}
-      assert.equal((await finance.detail(req(admin),a.id)).state,'APPROVED');assert.equal((await db.query('SELECT count(*)::int n FROM asset_finance_events WHERE asset_id=$1',[a.id]))[0].n,count);
+      const events = () =>
+        db.query(
+          'SELECT o.*,d.recipient FROM notification_outbox o LEFT JOIN email_deliveries d ON d.outbox_id=o.id WHERE o.event_key LIKE $1 ORDER BY o.event_key,d.recipient',
+          [`finance:${a.id}:%`],
+        );
+      let rows = await events();
+      assert.ok(rows.some((r) => r.recipient === reviewer.email));
+      assert.ok(rows.some((r) => r.recipient === second.email));
+      assert.ok(
+        !rows.some((r) =>
+          [admin.email, executive.email, employee.email, itAdmin.email].includes(r.recipient),
+        ),
+      );
+      const decoded = JSON.parse(decrypt(rows[0].payload.ciphertext, 'AUTH_MAIL_ENCRYPTION_KEY'));
+      assert.ok(decoded.text.includes('/finance/' + a.id));
+      assert.ok(!JSON.stringify(decoded).includes('Private invoice reason'));
+      assert.ok(!JSON.stringify(rows[0].payload).includes(a.assetCode));
+      const before = rows.length;
+      await assert.rejects(submit);
+      assert.equal((await events()).length, before);
+      let d = await finance.detail(req(reviewer), a.id);
+      await finance.review(req(reviewer, d.financeVersion), a.id, {
+        decision: 'RETURN',
+        reason: 'Synthetic return reason',
+      });
+      rows = await events();
+      const returned = rows.filter((r) => r.template === 'FINANCE_RETURNED');
+      assert.equal(returned.length, 1);
+      assert.equal(returned[0].recipient, admin.email);
+      d = await finance.detail(req(admin), a.id);
+      await finance.submit(req(admin, d.assetVersion), a.id, {
+        reason: 'Corrected synthetic record',
+      });
+      d = await finance.detail(req(reviewer), a.id);
+      await finance.review(req(reviewer, d.financeVersion), a.id, approval);
+      rows = await events();
+      assert.equal(rows.filter((r) => r.template === 'FINANCE_APPROVED').length, 1);
+      const approved = await finance.detail(req(admin), a.id);
+      const count = (
+        await db.query('SELECT count(*)::int n FROM asset_finance_events WHERE asset_id=$1', [a.id])
+      )[0].n;
+      const original = db.notify.bind(db);
+      db.notify = async () => {
+        throw Error('Synthetic queue failure');
+      };
+      try {
+        await assert.rejects(() =>
+          finance.submit(req(admin, approved.assetVersion), a.id, {
+            reason: 'Atomic rollback check',
+          }),
+        );
+      } finally {
+        db.notify = original;
+      }
+      assert.equal((await finance.detail(req(admin), a.id)).state, 'APPROVED');
+      assert.equal(
+        (
+          await db.query('SELECT count(*)::int n FROM asset_finance_events WHERE asset_id=$1', [
+            a.id,
+          ])
+        )[0].n,
+        count,
+      );
     });
     it('denies anonymous, employee, IT and executive queue access; executive cannot mutate', async () => {
       for (const u of [null, employee, itAdmin, executive])
@@ -466,6 +529,52 @@ describe(
       );
       const now = await finance.executive(req(executive));
       assert.equal(now.totalAssets, snapshot.totalAssets + 1);
+    });
+    it('detail state and review history remain coherent during a concurrent Finance decision', async () => {
+      const a = await domain.createAsset(req(admin), {
+        category: asset.category,
+        assetType: asset.assetType,
+        description: 'Synthetic detail snapshot race',
+        ownershipType: asset.ownershipType,
+        status: 'In Store',
+        condition: asset.condition,
+        riskLevel: asset.riskLevel,
+        amcApplies: false,
+      });
+      const submitted = await finance.submit(req(admin, a.version), a.id, {
+        reason: 'Synthetic concurrent detail test',
+      });
+      const original = db.query.bind(db);
+      const writerDb = new Db();
+      const writerFinance = new FinanceService(writerDb);
+      let writer: Promise<unknown> | undefined;
+      let started = false;
+      db.query = async (sql: string, values: any[] = [], client?: any) => {
+        const rows = await original(sql, values, client);
+        if (!started && sql.includes('s.display_name AS submitted_by_name') && values[0] === a.id) {
+          started = true;
+          writer = writerFinance.review(req(reviewer, submitted.financeVersion), a.id, {
+            decision: 'RETURN',
+            reason: 'Synthetic parallel Finance decision',
+          });
+          // Give the independent writer time to commit if the detail reader has no lock/snapshot.
+          await Promise.race([writer, new Promise((r) => setTimeout(r, 100))]);
+        }
+        return rows;
+      };
+      let detail: any;
+      try {
+        detail = await finance.detail(req(admin), a.id);
+      } finally {
+        db.query = original;
+        await writer;
+        await writerDb.onModuleDestroy();
+      }
+      assert.equal(started, true);
+      assert.equal(detail.state, 'SUBMITTED');
+      assert.equal(detail.history[0].action, 'SUBMITTED');
+      assert.equal(detail.history[0].financeVersion, detail.financeVersion);
+      assert.equal((await finance.detail(req(admin), a.id)).state, 'RETURNED');
     });
     it('pages full Finance evidence with tied microsecond timestamps and asset-scoped cursors', async () => {
       await db.query(

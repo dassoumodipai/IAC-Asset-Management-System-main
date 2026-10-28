@@ -115,19 +115,25 @@ export class FinanceService {
   async detail(req: AuthRequest, value: string) {
     requireRole(req, 'ADMIN', 'FINANCE');
     const id = z.string().uuid().parse(value);
-    const [row] = await this.db.query(
-      `SELECT a.id,a.asset_code,a.description,a.asset_type,a.version AS asset_version,a.purchase_cost,a.purchase_date,a.invoice_number,a.supplier,a.currency,a.finance_pending,
+    // Finance decisions and catalog edits lock the same asset row. Hold a shared
+    // lock through history so the returned state/version and evidence cannot tear.
+    return this.db.tx(async (c) => {
+      const [row] = await this.db.query(
+        `SELECT a.id,a.asset_code,a.description,a.asset_type,a.version AS asset_version,a.purchase_cost,a.purchase_date,a.invoice_number,a.supplier,a.currency,a.finance_pending,
       f.state,f.version AS finance_version,f.asset_version AS submitted_asset_version,f.submitted_by,f.submitted_at,f.submission_reason,f.reviewed_at,f.review_reason,f.approved_cost,f.approved_at,
       s.display_name AS submitted_by_name,r.display_name AS reviewed_by_name
-      FROM assets a LEFT JOIN asset_finance f ON f.asset_id=a.id LEFT JOIN users s ON s.id=f.submitted_by LEFT JOIN users r ON r.id=f.reviewed_by WHERE a.id=$1`,
-      [id],
-    );
-    if (!row) throw new NotFoundException('Asset not found');
-    const history = await this.db.query(
-      'SELECT e.id,e.action,e.reason,e.finance_version,e.details,e.occurred_at,u.display_name AS actor FROM asset_finance_events e JOIN users u ON u.id=e.actor_id WHERE e.asset_id=$1 ORDER BY e.occurred_at DESC,e.id DESC LIMIT 50',
-      [id],
-    );
-    return { ...camel(row), history: history.map(camel) };
+      FROM assets a LEFT JOIN asset_finance f ON f.asset_id=a.id LEFT JOIN users s ON s.id=f.submitted_by LEFT JOIN users r ON r.id=f.reviewed_by WHERE a.id=$1 FOR SHARE OF a`,
+        [id],
+        c,
+      );
+      if (!row) throw new NotFoundException('Asset not found');
+      const history = await this.db.query(
+        'SELECT e.id,e.action,e.reason,e.finance_version,e.details,e.occurred_at,u.display_name AS actor FROM asset_finance_events e JOIN users u ON u.id=e.actor_id WHERE e.asset_id=$1 ORDER BY e.occurred_at DESC,e.id DESC LIMIT 50',
+        [id],
+        c,
+      );
+      return { ...camel(row), history: history.map(camel) };
+    });
   }
   async history(req: AuthRequest, value: string, query: unknown) {
     requireRole(req, 'ADMIN', 'FINANCE');
@@ -204,12 +210,19 @@ export class FinanceService {
       const reviewers = await this.db.query(
         `SELECT DISTINCT u.email FROM users u JOIN user_roles r ON r.user_id=u.id
          WHERE r.role_code='FINANCE' AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.id<>$1`,
-        [req.user.id], c,
+        [req.user.id],
+        c,
       );
-      await this.db.notify(c, `finance:${id}:v${row.version}:submitted`, 'FINANCE_SUBMITTED', reviewers.map(u=>u.email), {
-        subject: `Finance review requested: ${asset.asset_code}`,
-        text: `An asset record is ready for independent Finance review. Sign in to review the current version: ${configuration().origin}/finance/${id}\nNo approval is recorded by this notification.`,
-      });
+      await this.db.notify(
+        c,
+        `finance:${id}:v${row.version}:submitted`,
+        'FINANCE_SUBMITTED',
+        reviewers.map((u) => u.email),
+        {
+          subject: `Finance review requested: ${asset.asset_code}`,
+          text: `An asset record is ready for independent Finance review. Sign in to review the current version: ${configuration().origin}/finance/${id}\nNo approval is recorded by this notification.`,
+        },
+      );
     });
     return this.detail(req, id);
   }
@@ -292,12 +305,19 @@ export class FinanceService {
       const submitters = await this.db.query(
         `SELECT u.email FROM users u WHERE u.id=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
          AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='ADMIN')`,
-        [current.submitted_by], c,
+        [current.submitted_by],
+        c,
       );
-      await this.db.notify(c, `finance:${id}:v${row.version}:${action.toLowerCase()}`, `FINANCE_${action}`, submitters.map(u=>u.email), {
-        subject: `Finance review ${action === 'APPROVED' ? 'approved' : 'returned'}: ${asset.asset_code}`,
-        text: `Finance has ${action === 'APPROVED' ? 'approved' : 'returned'} this asset record. Sign in to inspect the decision and current record: ${configuration().origin}/finance/${id}`,
-      });
+      await this.db.notify(
+        c,
+        `finance:${id}:v${row.version}:${action.toLowerCase()}`,
+        `FINANCE_${action}`,
+        submitters.map((u) => u.email),
+        {
+          subject: `Finance review ${action === 'APPROVED' ? 'approved' : 'returned'}: ${asset.asset_code}`,
+          text: `Finance has ${action === 'APPROVED' ? 'approved' : 'returned'} this asset record. Sign in to inspect the decision and current record: ${configuration().origin}/finance/${id}`,
+        },
+      );
     });
     return this.detail(req, id);
   }
