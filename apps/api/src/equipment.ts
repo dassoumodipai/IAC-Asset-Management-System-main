@@ -67,35 +67,38 @@ export class EquipmentService {
       })
       .strict()
       .parse(query);
-    const [person] = await this.db.query(
-      `SELECT u.id,u.display_name,u.email,u.designation,u.employee_reference,u.state,d.name AS department FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.id=$1`,
-      [id],
-    );
-    if (!person) throw new NotFoundException('Person not found');
-    const values: any[] = [id];
-    let after = '';
-    if (p.after) {
-      values.push(p.after);
-      after = ' AND a.asset_code>$2';
-    }
-    values.push(p.limit + 1);
-    const [summary] = await this.db.query(
-      `SELECT count(*)::int AS total,count(*) FILTER(WHERE s.acknowledgement='PENDING')::int AS pending_acknowledgements,count(*) FILTER(WHERE s.acknowledgement='DISPUTED')::int AS disputed FROM assignments s WHERE s.user_id=$1 AND s.ended_at IS NULL`,
-      [id],
-    );
-    const rows = await this.db.query(
-      `SELECT a.id,a.asset_code,a.asset_type,a.description,a.serial_number,a.manufacturer,a.model,a.condition,a.status,l.site AS location_site,l.room AS location_room,
+    return this.db.tx(async () => {
+      await this.db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const [person] = await this.db.query(
+        `SELECT u.id,u.display_name,u.email,u.designation,u.employee_reference,u.state,d.name AS department FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.id=$1`,
+        [id],
+      );
+      if (!person) throw new NotFoundException('Person not found');
+      const values: any[] = [id];
+      let after = '';
+      if (p.after) {
+        values.push(p.after);
+        after = ' AND a.asset_code>$2';
+      }
+      values.push(p.limit + 1);
+      const [summary] = await this.db.query(
+        `SELECT count(*)::int AS total,count(*) FILTER(WHERE s.acknowledgement='PENDING')::int AS pending_acknowledgements,count(*) FILTER(WHERE s.acknowledgement='DISPUTED')::int AS disputed FROM assignments s WHERE s.user_id=$1 AND s.ended_at IS NULL`,
+        [id],
+      );
+      const rows = await this.db.query(
+        `SELECT a.id,a.asset_code,a.asset_type,a.description,a.serial_number,a.manufacturer,a.model,a.condition,a.status,l.site AS location_site,l.room AS location_room,
     s.id AS assignment_id,s.assigned_at,s.acknowledgement,s.version AS assignment_version,a.version AS asset_version${isFinance ? ',a.purchase_cost,f.state AS finance_state,f.approved_cost,f.approved_at' : ''}
     FROM assignments s JOIN assets a ON a.id=s.asset_id LEFT JOIN locations l ON l.id=a.location_id ${isFinance ? 'LEFT JOIN asset_finance f ON f.asset_id=a.id' : ''} WHERE s.user_id=$1 AND s.ended_at IS NULL${after} ORDER BY a.asset_code LIMIT $${values.length}`,
-      values,
-    );
-    // Current equipment only; closed custody remains on the individual asset audit trail.
-    return {
-      person: camel(person),
-      summary: camel(summary),
-      items: rows.slice(0, p.limit).map(camel),
-      nextCursor: rows.length > p.limit ? rows[p.limit - 1].asset_code : null,
-    };
+        values,
+      );
+      // Current equipment only; closed custody remains on the individual asset audit trail.
+      return {
+        person: camel(person),
+        summary: camel(summary),
+        items: rows.slice(0, p.limit).map(camel),
+        nextCursor: rows.length > p.limit ? rows[p.limit - 1].asset_code : null,
+      };
+    });
   }
 }
 @Controller('equipment')

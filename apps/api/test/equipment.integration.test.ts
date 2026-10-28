@@ -143,6 +143,50 @@ describe(
         1,
       );
     });
+    it('person counts and equipment share a snapshot across a concurrent return', async () => {
+      const original = db.query.bind(db);
+      let changed = false;
+      const before = await equipment.person(req(admin), employee.id, {});
+      const item = before.items[0];
+      db.query = async (sql: string, values: any[] = [], client?: any) => {
+        const rows = await original(sql, values, client);
+        if (!changed && sql.includes('AS pending_acknowledgements') && values[0] === employee.id) {
+          changed = true;
+          const writer = await db.pool.connect();
+          try {
+            await writer.query('BEGIN');
+            await writer.query(
+              'UPDATE assignments SET ended_at=now(),version=version+1 WHERE id=$1',
+              [item.assignmentId],
+            );
+            await writer.query(
+              "UPDATE assets SET status='In Store',version=version+1 WHERE id=$1",
+              [item.id],
+            );
+            await writer.query('COMMIT');
+          } catch (e) {
+            await writer.query('ROLLBACK');
+            throw e;
+          } finally {
+            writer.release();
+          }
+        }
+        return rows;
+      };
+      let snapshot: any;
+      try {
+        snapshot = await equipment.person(req(admin), employee.id, {});
+      } finally {
+        db.query = original;
+      }
+      assert.equal(changed, true);
+      assert.equal(snapshot.summary.total, before.summary.total);
+      assert.equal(snapshot.items.length, before.items.length);
+      assert(snapshot.items.some((x: any) => x.id === item.id));
+      const after = await equipment.person(req(admin), employee.id, {});
+      assert.equal(after.summary.total, before.summary.total - 1);
+      assert.equal(after.items.length, after.summary.total);
+    });
     it('validates paging and includes people without assigned equipment', async () => {
       const p = await equipment.people(req(finance), { q: tag });
       assert.equal(p.items.find((u: any) => u.id === other.id).equipmentCount, 0);
