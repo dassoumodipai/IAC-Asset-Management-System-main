@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient, types } from 'pg';
 types.setTypeParser(1082, (value) => value);
+import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { configuration, encrypt, requestContext } from './config';
@@ -92,7 +93,7 @@ export class Db implements OnModuleDestroy {
     );
     if (!rows[0]) return;
     for (const recipient of new Set(recipients.map((v) => v.trim().toLowerCase()))) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
+      if (!z.email().max(254).safeParse(recipient).success)
         throw new Error('Invalid notification recipient');
       await this.query(
         'INSERT INTO email_deliveries(outbox_id,recipient) VALUES($1,$2) ON CONFLICT DO NOTHING',
