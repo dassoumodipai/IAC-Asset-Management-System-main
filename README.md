@@ -14,6 +14,8 @@ See [demo walkthrough](docs/DEMO_HANDOFF_2026_10.md) and [implemented/configurab
 
 For the complete delivery and meeting setup, start with [Run the manager demo locally](docs/RUN_DEMO_FIRST.md).
 
+Windows users: [PowerShell setup and prerequisite check](docs/WINDOWS_DEMO.md).
+
 ## Start locally
 
 Requirements: Node.js 24, npm, Docker Desktop/Engine. Run in this directory:

@@ -1,10 +1,12 @@
 # Run the manager demo locally
 
+Windows laptop: start with [Windows demo setup](WINDOWS_DEMO.md) for the minimal prerequisite check and PowerShell commands.
+
 Use the complete source ZIP delivered with this checkpoint. The partial GitHub feature branch is not the runnable delivery. This is a local, single-organization demo with synthetic records, not a deployed production system.
 
 ## Before the meeting
 
-You need a laptop with Node.js 24, npm, Docker Desktop/Engine running, an internet connection for the first dependency/container downloads, and a time-based authenticator app. On Windows, use WSL for the documented Unix helpers. The source does not include default passwords, real company records, a hosted URL or a prepared login.
+You need a laptop with Node.js 24, npm, Docker Desktop/Engine running, an internet connection for the first dependency/container downloads, and a time-based authenticator app. The local commands can use Windows PowerShell with npm.cmd; only the Unix production helper needs a Unix shell. The source does not include default passwords, real company records, a hosted URL or a prepared login.
 
 Check in a terminal:
 
