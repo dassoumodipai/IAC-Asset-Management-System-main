@@ -177,11 +177,17 @@ export function page(rows: any[], limit: number, fields: string[]) {
   const items = rows.slice(0, limit);
   const last = items.at(-1);
   return {
-    items: items.map(camel),
+    items: items.map((row) =>
+      camel(Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith('cursor_')))),
+    ),
     nextCursor: hasMore
       ? Buffer.from(
           JSON.stringify(
-            fields.map((f) => (last[f] instanceof Date ? last[f].toISOString() : String(last[f]))),
+            fields.map(
+              (f) =>
+                last[`cursor_${f}`] ??
+                (last[f] instanceof Date ? last[f].toISOString() : String(last[f])),
+            ),
           ),
         ).toString('base64url')
       : null,
@@ -409,7 +415,12 @@ export async function validateAsset(db: Db, data: any, c: PoolClient, previous?:
       'Terminal assets require disposal date and evidence reference',
     );
 }
-export async function eligibleEmployee(db: Db, userId: string, c: PoolClient, allowInvited = false) {
+export async function eligibleEmployee(
+  db: Db,
+  userId: string,
+  c: PoolClient,
+  allowInvited = false,
+) {
   return found(
     (
       await db.query(

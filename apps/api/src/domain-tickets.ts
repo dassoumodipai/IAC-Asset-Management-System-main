@@ -107,7 +107,7 @@ export class TicketDomain extends AssetDomain {
     values.push(p.limit + 1);
     return page(
       await this.db.query(
-        `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''} FROM tickets t WHERE ${where.join(' AND ')} ORDER BY t.created_at DESC,t.id DESC LIMIT $${values.length}`,
+        `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''},to_char(t.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at FROM tickets t WHERE ${where.join(' AND ')} ORDER BY t.created_at DESC,t.id DESC LIMIT $${values.length}`,
         values,
       ),
       p.limit,
@@ -218,7 +218,7 @@ export class TicketDomain extends AssetDomain {
     values.push(p.limit + 1);
     const result = page(
       await this.db.query(
-        `SELECT u.id,u.ticket_id,u.kind,u.visibility,u.body,u.old_status,u.new_status,u.created_at FROM ticket_updates u WHERE ${where.join(' AND ')} ORDER BY u.created_at,u.id LIMIT $${values.length}`,
+        `SELECT u.id,u.ticket_id,u.kind,u.visibility,u.body,u.old_status,u.new_status,u.created_at,to_char(u.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at FROM ticket_updates u WHERE ${where.join(' AND ')} ORDER BY u.created_at,u.id LIMIT $${values.length}`,
         values,
       ),
       p.limit,

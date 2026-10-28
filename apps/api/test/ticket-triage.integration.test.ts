@@ -68,3 +68,70 @@ test('triage ownership combines category/search/paging and cannot expand employe
   );
   await assert.rejects(service.tickets(req(it), { ownership: 'INVALID' }));
 });
+
+test('ticket, ascending discussion and audit cursors preserve sub-millisecond order', async () => {
+  const user = randomUUID(),
+    tag = `precision-${randomUUID()}`;
+  await db.query("INSERT INTO users(id,email,display_name)VALUES($1,$2,'Precision fixture')", [
+    user,
+    `${user}@example.org`,
+  ]);
+  const req = { user: { id: user, roles: ['ADMIN'] } } as AuthRequest;
+  const tickets: string[] = [],
+    updates: string[] = [],
+    audits: string[] = [];
+  for (let i = 1; i <= 5; i++) {
+    const [t] = await db.query(
+      "INSERT INTO tickets(reporter_id,subject,description,category,priority,created_at)VALUES($1,$2,'Synthetic','HARDWARE','LOW','2031-01-01 00:00:00.123000+00'::timestamptz+$3*interval '1 microsecond')RETURNING id",
+      [user, tag, i],
+    );
+    tickets.unshift(t.id);
+  }
+  const ticket = tickets[0];
+  for (let i = 1; i <= 5; i++) {
+    const [u] = await db.query(
+      "INSERT INTO ticket_updates(ticket_id,actor_id,kind,visibility,body,created_at)VALUES($1,$2,'COMMENT','PUBLIC','Synthetic','2031-01-01 00:00:00.123000+00'::timestamptz+$3*interval '1 microsecond')RETURNING id",
+      [ticket, user, i],
+    );
+    updates.push(u.id);
+    const [a] = await db.query(
+      "INSERT INTO audit_events(actor_id,actor_kind,entity_type,entity_id,action,request_id,occurred_at)VALUES($1,'USER','PRECISION',$2,'SYNTHETIC',$3,'2031-01-01 00:00:00.123000+00'::timestamptz+$4*interval '1 microsecond')RETURNING id",
+      [user, ticket, randomUUID(), i],
+    );
+    audits.unshift(a.id);
+  }
+  async function collect(load: (cursor?: string) => Promise<any>) {
+    let cursor: string | undefined;
+    const ids: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const p = await load(cursor);
+      ids.push(...p.items.map((x: any) => x.id));
+      cursor = p.nextCursor ?? undefined;
+      if (!cursor) return ids;
+    }
+    throw Error('Cursor failed to advance');
+  }
+  assert.deepEqual(
+    await collect((cursor) =>
+      service.tickets(req, { q: tag, limit: 2, ...(cursor ? { cursor } : {}) }),
+    ),
+    tickets,
+  );
+  assert.deepEqual(
+    await collect((cursor) =>
+      service.updates(req, ticket, { limit: 2, ...(cursor ? { cursor } : {}) }),
+    ),
+    updates,
+  );
+  assert.deepEqual(
+    await collect((cursor) =>
+      service.auditEvents(req, {
+        entityType: 'PRECISION',
+        entityId: ticket,
+        limit: 2,
+        ...(cursor ? { cursor } : {}),
+      }),
+    ),
+    audits,
+  );
+});
