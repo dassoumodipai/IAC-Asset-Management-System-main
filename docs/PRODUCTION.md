@@ -30,3 +30,9 @@ The 28 October local PostgreSQL14 drill passed. This does not certify the Postgr
 `/api/v1/health` remains a database-connectivity liveness probe. `/api/v1/ready` additionally requires migration023 and the Finance columns used by this release. It returns only a generic503 when unavailable; no schema names or connection details are sent to callers. The production compose API healthcheck now uses readiness. This is a minimal release-schema check, not a comprehensive database-integrity, SMTP or worker-liveness check.
 
 The production environment helper validates a hostname and single sender address, accepts the Google app password only in a hidden terminal prompt, creates a mode0600 file and never prints generated secrets. It does not verify sender ownership/provider policy or deploy anything. Back up keys through your approved secret manager, not terminal logs. `npm run test:setup` runs a disposable dummy-secret regression for these properties.
+
+## Runtime dependency smoke
+
+The API Docker image now runs `node scripts/verify-runtime.mjs` after its production-only, script-disabled install. The smoke uses generated synthetic input to check Argon2 hash/verify, Sharp JPEG encoding, XLSX extraction and text-PDF extraction from the compiled API. It touches no database, mailbox or outside service and fails the build if the selected native/optional dependencies do not work. Run it after `npm run build -w @iac/api` for a manual check.
+
+A clean local Node24 `npm ci --omit=dev --ignore-scripts` install passed this smoke on 29 October. Docker is unavailable in the review environment, so the actual Debian image build, PostgreSQL17 compose start and target architecture still need their own release verification. A smoke on the developer host is not that verification.
