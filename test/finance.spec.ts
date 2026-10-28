@@ -271,7 +271,9 @@ test('Admin delivery health shows retry evidence without message content and den
     page.getByRole('heading', { name: 'Email delivery health', exact: true }),
   ).toBeVisible();
   await Promise.all([
-    page.waitForResponse(r=>r.url().includes('/api/v1/admin/deliveries?state=DEAD')&&r.status()===200),
+    page.waitForResponse(
+      (r) => r.url().includes('/api/v1/admin/deliveries?state=DEAD') && r.status() === 200,
+    ),
     page.getByLabel('Delivery state').selectOption('DEAD'),
   ]);
   await expect(page.locator('article').first()).toBeVisible();
@@ -299,7 +301,9 @@ test('Admin delivery health shows retry evidence without message content and den
     page.getByRole('heading', { name: 'Email delivery health', exact: true }),
   ).toBeVisible();
   await Promise.all([
-    page.waitForResponse(r=>r.url().includes('/api/v1/admin/deliveries?state=DEAD')&&r.status()===200),
+    page.waitForResponse(
+      (r) => r.url().includes('/api/v1/admin/deliveries?state=DEAD') && r.status() === 200,
+    ),
     page.getByLabel('Delivery state').selectOption('DEAD'),
   ]);
   await expect(page.locator('article').first()).toBeVisible();
@@ -325,25 +329,179 @@ test('Admin delivery health shows retry evidence without message content and den
   expect(response.status()).toBe(403);
 });
 
-test('new UI asset keeps department and person mapping through Finance return and approval',async({page,context})=>{
- await signIn(context,admin);await page.goto('/assets/new');
- await page.getByLabel('Description',{exact:true}).fill(`${tag} mapped arrival`);
- for(const[label,id,option]of[['Asset type','assetType','Laptop'],['Category','category','IT Hardware'],['Ownership type','ownershipType','Owned'],['Condition','condition','Good'],['Risk level','riskLevel','Low'],['Department','departmentId',tag]]){
-  await page.getByLabel(label,{exact:true}).click();await page.locator(`#${id} ~ ul`).getByRole('option',{name:option,exact:true}).first().click();
- }
- await page.getByRole('button',{name:'Create asset',exact:true}).click();await expect(page).toHaveURL(/assets\/[a-f0-9-]+$/);
- const id=page.url().split('/').at(-1)!;const a=(await pool.query('SELECT id,asset_code,department_id,version FROM assets WHERE id=$1',[id])).rows[0];expect(a.department_id).toBe(department);
- await page.goto(`/assets/${id}/assign?person=${employee.id}`);await page.getByRole('button',{name:'Use this person for this item',exact:true}).click();await page.getByRole('button',{name:'Confirm assignment',exact:true}).click();await expect(page).toHaveURL(new RegExp('/equipment/people/'+employee.id+'$'));
- await page.goto(`/finance/${id}`);await page.getByLabel('Submission reason').fill('New arrival mapped to correct department and employee');await page.getByRole('button',{name:'Submit to Finance',exact:true}).click();await expect(page.getByText('SUBMITTED',{exact:true}).first()).toBeVisible();
- const post=async(path:string,version:number,data:unknown)=>page.request.post('/api/v1'+path,{headers:{Origin:origin,'X-CSRF-Token':(await context.cookies()).find(c=>c.name==='iac_dev_csrf')!.value,'If-Match':`"${version}"`},data});
- const asset=(await pool.query('SELECT * FROM assets WHERE id=$1',[id])).rows[0];expect((await post(`/finance/assets/${id}/submit`,asset.version,{reason:'Duplicate test submission'})).status()).toBe(409);
- await signIn(context,finance);await page.goto('/finance');await page.getByLabel('Department',{exact:true}).selectOption(department);await page.getByLabel('Asset code or description').fill(a.asset_code);await page.getByRole('link',{name:`Review ${a.asset_code}`,exact:true}).click();
- await page.getByLabel('Decision',{exact:true}).selectOption('RETURN');await page.getByLabel('Review reason').fill('Verify arrival invoice before approval');await page.getByRole('button',{name:'Return to registrar',exact:true}).click();await expect(page.getByText('RETURNED',{exact:true}).first()).toBeVisible();
- await signIn(context,admin);await page.goto(`/finance/${id}`);await page.getByLabel('Submission reason').fill('Invoice independently reconciled');await page.getByRole('button',{name:'Submit to Finance',exact:true}).click();await expect(page.getByText('SUBMITTED',{exact:true}).first()).toBeVisible();
- await signIn(context,finance);await page.goto(`/finance/${id}`);await page.getByLabel('Purchase cost (INR)').fill('12345.67');await page.getByLabel('Purchase date',{exact:true}).fill('2026-10-28');await page.getByLabel('Invoice number').fill('SYNTHETIC-MAPPING-INV');await page.getByLabel('Supplier',{exact:true}).fill('Synthetic Mapping Supplier');await page.getByLabel('Review reason').fill('Arrival and employee mapping verified');await page.getByRole('button',{name:'Record Finance approval',exact:true}).click();await expect(page.getByText('APPROVED',{exact:true}).first()).toBeVisible();
- const mapping=(await pool.query('SELECT a.department_id,x.user_id,f.state,f.approved_cost FROM assets a JOIN assignments x ON x.asset_id=a.id AND x.ended_at IS NULL JOIN asset_finance f ON f.asset_id=a.id WHERE a.id=$1',[id])).rows[0];expect(mapping).toEqual({department_id:department,user_id:employee.id,state:'APPROVED',approved_cost:'12345.67'});
- const history=(await pool.query('SELECT action FROM asset_finance_events WHERE asset_id=$1 ORDER BY occurred_at,id',[id])).rows.map(r=>r.action);expect(history).toEqual(['SUBMITTED','RETURNED','SUBMITTED','APPROVED']);
- const mail=(await pool.query("SELECT template FROM notification_outbox WHERE event_key LIKE $1",[`finance:${id}:%`])).rows.map(r=>r.template).sort();expect(mail).toEqual(['FINANCE_APPROVED','FINANCE_RETURNED','FINANCE_SUBMITTED','FINANCE_SUBMITTED']);
- await signIn(context,executive);await page.goto('/executive');await page.waitForLoadState('networkidle');await expect(page.getByRole('heading',{name:'Executive overview',exact:true})).toBeVisible();expect((await page.request.get(`/api/v1/finance/assets/${id}`)).status()).toBe(403);
- await signIn(context,employee);await page.goto('/equipment/mine');await expect(page.getByRole('heading',{name:a.asset_code,exact:true})).toBeVisible();await expect(page.getByText('₹12,345.67',{exact:true})).toHaveCount(0);expect((await page.request.get(`/api/v1/finance/assets/${id}`)).status()).toBe(403);await page.screenshot({path:'/downloads/iac-mapped-arrival-employee.png'});
+test('new UI asset keeps department and person mapping through Finance return and approval', async ({
+  page,
+  context,
+}) => {
+  await signIn(context, admin);
+  await page.goto('/assets/new');
+  await page.getByLabel('Description', { exact: true }).fill(`${tag} mapped arrival`);
+  for (const [label, id, option] of [
+    ['Asset type', 'assetType', 'Laptop'],
+    ['Category', 'category', 'IT Hardware'],
+    ['Ownership type', 'ownershipType', 'Owned'],
+    ['Condition', 'condition', 'Good'],
+    ['Risk level', 'riskLevel', 'Low'],
+    ['Department', 'departmentId', tag],
+  ]) {
+    await page.getByLabel(label, { exact: true }).click();
+    await page
+      .locator(`#${id} ~ ul`)
+      .getByRole('option', { name: option, exact: true })
+      .first()
+      .click();
+  }
+  await page.getByRole('button', { name: 'Create asset', exact: true }).click();
+  await expect(page).toHaveURL(/assets\/[a-f0-9-]+$/);
+  const id = page.url().split('/').at(-1)!;
+  const a = (
+    await pool.query('SELECT id,asset_code,department_id,version FROM assets WHERE id=$1', [id])
+  ).rows[0];
+  expect(a.department_id).toBe(department);
+  await page.goto(`/assets/${id}/assign?person=${employee.id}`);
+  await page.getByRole('button', { name: 'Use this person for this item', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp('/equipment/people/' + employee.id + '$'));
+  await page.goto(`/finance/${id}`);
+  await page
+    .getByLabel('Submission reason')
+    .fill('New arrival mapped to correct department and employee');
+  await page.getByRole('button', { name: 'Submit to Finance', exact: true }).click();
+  await expect(page.getByText('SUBMITTED', { exact: true }).first()).toBeVisible();
+  const post = async (path: string, version: number, data: unknown) =>
+    page.request.post('/api/v1' + path, {
+      headers: {
+        Origin: origin,
+        'X-CSRF-Token': (await context.cookies()).find((c) => c.name === 'iac_dev_csrf')!.value,
+        'If-Match': `"${version}"`,
+      },
+      data,
+    });
+  const asset = (await pool.query('SELECT * FROM assets WHERE id=$1', [id])).rows[0];
+  expect(
+    (
+      await post(`/finance/assets/${id}/submit`, asset.version, {
+        reason: 'Duplicate test submission',
+      })
+    ).status(),
+  ).toBe(409);
+  await signIn(context, finance);
+  await page.goto('/finance');
+  await page.getByLabel('Department', { exact: true }).selectOption(department);
+  await page.getByLabel('Asset code or description').fill(a.asset_code);
+  await page.getByRole('link', { name: `Review ${a.asset_code}`, exact: true }).click();
+  await page.getByLabel('Decision', { exact: true }).selectOption('RETURN');
+  await page.getByLabel('Review reason').fill('Verify arrival invoice before approval');
+  await page.getByRole('button', { name: 'Return to registrar', exact: true }).click();
+  await expect(page.getByText('RETURNED', { exact: true }).first()).toBeVisible();
+  await signIn(context, admin);
+  await page.goto(`/finance/${id}`);
+  await page.getByLabel('Submission reason').fill('Invoice independently reconciled');
+  await page.getByRole('button', { name: 'Submit to Finance', exact: true }).click();
+  await expect(page.getByText('SUBMITTED', { exact: true }).first()).toBeVisible();
+  await signIn(context, finance);
+  await page.goto(`/finance/${id}`);
+  await page.getByLabel('Purchase cost (INR)').fill('12345.67');
+  await page.getByLabel('Purchase date', { exact: true }).fill('2026-10-28');
+  await page.getByLabel('Invoice number').fill('SYNTHETIC-MAPPING-INV');
+  await page.getByLabel('Supplier', { exact: true }).fill('Synthetic Mapping Supplier');
+  await page.getByLabel('Review reason').fill('Arrival and employee mapping verified');
+  await page.getByRole('button', { name: 'Record Finance approval', exact: true }).click();
+  await expect(page.getByText('APPROVED', { exact: true }).first()).toBeVisible();
+  const mapping = (
+    await pool.query(
+      'SELECT a.department_id,x.user_id,f.state,f.approved_cost FROM assets a JOIN assignments x ON x.asset_id=a.id AND x.ended_at IS NULL JOIN asset_finance f ON f.asset_id=a.id WHERE a.id=$1',
+      [id],
+    )
+  ).rows[0];
+  expect(mapping).toEqual({
+    department_id: department,
+    user_id: employee.id,
+    state: 'APPROVED',
+    approved_cost: '12345.67',
+  });
+  const history = (
+    await pool.query(
+      'SELECT action FROM asset_finance_events WHERE asset_id=$1 ORDER BY occurred_at,id',
+      [id],
+    )
+  ).rows.map((r) => r.action);
+  expect(history).toEqual(['SUBMITTED', 'RETURNED', 'SUBMITTED', 'APPROVED']);
+  const mail = (
+    await pool.query('SELECT template FROM notification_outbox WHERE event_key LIKE $1', [
+      `finance:${id}:%`,
+    ])
+  ).rows
+    .map((r) => r.template)
+    .sort();
+  expect(mail).toEqual([
+    'FINANCE_APPROVED',
+    'FINANCE_RETURNED',
+    'FINANCE_SUBMITTED',
+    'FINANCE_SUBMITTED',
+  ]);
+  await signIn(context, executive);
+  await page.goto('/executive');
+  await page.waitForLoadState('networkidle');
+  await expect(
+    page.getByRole('heading', { name: 'Executive overview', exact: true }),
+  ).toBeVisible();
+  expect((await page.request.get(`/api/v1/finance/assets/${id}`)).status()).toBe(403);
+  await signIn(context, employee);
+  await page.goto('/equipment/mine');
+  await expect(page.getByRole('heading', { name: a.asset_code, exact: true })).toBeVisible();
+  await expect(page.getByText('₹12,345.67', { exact: true })).toHaveCount(0);
+  expect((await page.request.get(`/api/v1/finance/assets/${id}`)).status()).toBe(403);
+  await page.screenshot({ path: '/downloads/iac-mapped-arrival-employee.png' });
+});
+
+test('Admin can edit non-financial metadata after Finance approval without resending protected cost fields', async ({
+  page,
+  context,
+}) => {
+  await signIn(context, admin);
+  const id = randomUUID();
+  await pool.query(
+    `INSERT INTO assets(id,asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,department_id,created_by,purchase_cost,purchase_date,invoice_number,supplier)VALUES($1,'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Synthetic approved edit','Owned','In Store','Good','Low',$2,$3,65000,'2026-01-15','SYNTHETIC-EDIT','Synthetic supplier')`,
+    [id, department, admin.id],
+  );
+  await pool.query(
+    `INSERT INTO asset_finance(asset_id,state,asset_version,submitted_by,submission_reason,approved_cost,approved_at,approved_by)VALUES($1,'APPROVED',1,$2,'Synthetic approved edit fixture',65000,now(),$3)`,
+    [id, admin.id, finance.id],
+  );
+  await page.goto(`/assets/${id}/edit`);
+  await page
+    .getByLabel('Remarks', { exact: true })
+    .fill('Updated storage and accountability note only');
+  await page
+    .getByLabel('Reason for this change', { exact: true })
+    .fill('Non-financial record correction');
+  const response = page.waitForResponse(
+    (r) => r.url().endsWith('/assets/' + id) && r.request().method() === 'PATCH',
+  );
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  const result = await response;
+  expect(result.status(), await result.text()).toBe(200);
+  await expect(page).toHaveURL(new RegExp('/assets/' + id + '$'));
+  const row = (await pool.query('SELECT remarks,purchase_cost FROM assets WHERE id=$1', [id]))
+    .rows[0];
+  expect(row).toEqual({
+    remarks: 'Updated storage and accountability note only',
+    purchase_cost: '65000.00',
+  });
+  await page.goto(`/assets/${id}/edit`);
+  await page.getByLabel('Purchase cost (INR)', { exact: true }).fill('66000.00');
+  await page
+    .getByLabel('Reason for this change', { exact: true })
+    .fill('Attempt to bypass Finance review');
+  const protectedResponse = page.waitForResponse(
+    (r) => r.url().endsWith('/assets/' + id) && r.request().method() === 'PATCH',
+  );
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  expect((await protectedResponse).status()).toBe(409);
+  await expect(page.getByRole('alert')).toContainText('Finance submission');
+  expect(
+    (await pool.query('SELECT purchase_cost FROM assets WHERE id=$1', [id])).rows[0].purchase_cost,
+  ).toBe('65000.00');
+  await page.screenshot({ path: '/downloads/iac-approved-edit-protected.png' });
 });

@@ -945,6 +945,13 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     ];
     for (const name of allowed) {
       const value = values[name];
+      // Editing a catalog note must not re-submit unchanged Finance-controlled
+      // fields. The API remains authoritative for actual financial changes.
+      if (baseline) {
+        const original = baseline[name as keyof Asset];
+        const normalized = original == null ? '' : String(original);
+        if ((value?.trim() ?? '') === normalized.trim()) continue;
+      }
       if (value?.trim()) body[name] = value.trim();
       else if (
         baseline &&
