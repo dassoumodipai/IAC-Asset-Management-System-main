@@ -122,7 +122,7 @@ async function bootstrap(db: Db) {
     'Administrator created. Sign in, enroll MFA, and accept the portal notice.\n',
   );
 }
-async function seed(db: Db) {
+export async function seed(db: Db) {
   if (configuration().production) throw new Error('Synthetic seeding is disabled in production');
   const target = new URL(configuration().databaseUrl);
   if (
@@ -143,7 +143,11 @@ async function seed(db: Db) {
       c,
     );
     for (const type of ['Laptop', 'Monitor', 'Mouse', 'Keyboard']) {
-      const existing = await db.query(`SELECT a.id FROM assets a JOIN audit_events e ON e.entity_id=a.id AND e.action='SYNTHETIC_SEED' WHERE a.description=$1 AND a.asset_type=$2 AND a.department_id=(SELECT id FROM departments WHERE code='DEMO_IT') LIMIT 1`, [`Synthetic demonstration ${type.toLowerCase()}`,type],c);
+      const existing = await db.query(
+        `SELECT a.id FROM assets a JOIN audit_events e ON e.entity_id=a.id AND e.action='SYNTHETIC_SEED' WHERE a.description=$1 AND a.asset_type=$2 AND a.department_id=(SELECT id FROM departments WHERE code='DEMO_IT') LIMIT 1`,
+        [`Synthetic demonstration ${type.toLowerCase()}`, type],
+        c,
+      );
       if (existing.length) continue;
       const [asset] = await db.query(
         "INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,department_id,location_id) SELECT 'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware',$1,$2,'Owned','In Store','Good','Low',(SELECT id FROM departments WHERE code='DEMO_IT'),(SELECT id FROM locations WHERE code='DEMO_OFFICE') RETURNING id",

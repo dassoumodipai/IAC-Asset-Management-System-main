@@ -113,6 +113,14 @@ test('runtime role can read application data but cannot erase inventory, mutate 
         [`runtime-finance-${randomUUID()}@example.test`],
       )
     ).rows;
+    await c.query(
+      "UPDATE users SET state='ACTIVE',email_verified_at=now() WHERE id=ANY($1::uuid[])",
+      [[photoUserId, reviewerId]],
+    );
+    await c.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'ADMIN'),($2,'FINANCE')", [
+      photoUserId,
+      reviewerId,
+    ]);
     const service = new FinanceService(db);
     const request = (id: string, roles: string[], version: number) =>
       ({
@@ -138,6 +146,23 @@ test('runtime role can read application data but cannot erase inventory, mutate 
     assert.equal(approved.state, 'APPROVED');
     assert.equal(approved.approvedCost, '1500.00');
     assert.equal(approved.history.length, 2);
+    const queued = (
+      await c.query(
+        `SELECT o.template,d.recipient FROM notification_outbox o JOIN email_deliveries d ON d.outbox_id=o.id WHERE o.event_key LIKE $1 ORDER BY o.template`,
+        [`finance:${photoAssetId}:%`],
+      )
+    ).rows;
+    assert.ok(
+      queued.some(
+        (r) => r.template === 'FINANCE_SUBMITTED' && r.recipient.startsWith('runtime-finance-'),
+      ),
+    );
+    assert.ok(
+      queued.some(
+        (r) => r.template === 'FINANCE_APPROVED' && r.recipient.startsWith('runtime-photo-'),
+      ),
+    );
+
     const [{ count: evidenceCount }] = (
       await c.query(
         "SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action IN ('FINANCE_SUBMITTED','FINANCE_APPROVED')",

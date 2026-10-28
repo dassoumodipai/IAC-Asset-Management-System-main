@@ -85,6 +85,7 @@ function canTransfer(asset: Asset) {
 export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean }) {
   const { user } = useSession();
   const manage = hasRole(user, 'ADMIN');
+  const support = hasRole(user, 'IT_ADMIN');
   const [params, setParams] = useSearchParams();
   const refs = useReferences();
   const filters = {
@@ -117,13 +118,23 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
       ) : null}
       <PageTitle
         eyebrow={manage ? 'INVENTORY / ASSETS' : 'MY WORKSPACE / ASSETS'}
-        title={assignmentMode ? 'Assign an asset' : manage ? 'Asset catalog' : 'Your assets'}
+        title={
+          assignmentMode
+            ? 'Assign an asset'
+            : manage
+              ? 'Asset catalog'
+              : support
+                ? 'Available assets'
+                : 'Your assets'
+        }
         description={
           assignmentMode
             ? 'Choose an In Store asset below, then select an eligible employee and confirm the handover.'
             : manage
               ? 'One register. Clear custody. Every asset accounted for.'
-              : 'Review the equipment assigned to you and confirm its details.'
+              : support
+                ? 'Equipment assigned to you or linked to support tickets. Custody and financial details remain restricted.'
+                : 'Review the equipment assigned to you and confirm its details.'
         }
         action={
           manage ? (
