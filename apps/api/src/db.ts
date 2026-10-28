@@ -105,4 +105,4 @@ export class Db implements OnModuleDestroy {
   async onModuleDestroy() {
     await this.pool.end();
   }
-}
+      }
