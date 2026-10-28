@@ -34,9 +34,15 @@ CI=1 npm run test:e2e
 
 Integration/browser tests require TEST_DATABASE_URL ending in `_test`, fake SMTP on localhost:11025 and the browser executable supplied by CI or Playwright. PLAYWRIGHT_CHROME_EXECUTABLE can select an installed Chrome binary; otherwise existing CI/Edge defaults remain. Browser service workers are blocked for test isolation, so the suite does not certify offline/update behavior.
 
+## Local demo email and recording
+
+For a fresh setup, run `npm run setup:local`, `npm run infra:up`, migrations, synthetic seed and interactive Admin bootstrap as README describes. The generated configuration uses Mailpit on 127.0.0.1:11025. Open 127.0.0.1:18025 to inspect local email. No real email is sent through this fake sink. Existing .env files are not rewritten; inspect existing SMTP settings before starting. The compose file is syntax-checked but has not been boot-tested in the delivery environment because Docker is unavailable there. Runtime DB/API/browser tests use local PostgreSQL 14 and a standalone Mailpit process; compose specifies PostgreSQL 17 and requires separate boot verification.
+
+For a synthetic real-API recorded walkthrough, set `IAC_RECORD_DEMO=1` when running the Finance and equipment browser tests. Playwright saves one video per test in test-results. These test-only accounts bypass interactive sign-in setup to exercise business workflows; the recordings are not proof of real user onboarding or a hosted deployment. Do not expose test session tokens or .env in a recording or archive.
+
 ## Verification evidence
 
-At the 21:31 checkpoint: 94 database/API integration tests, 27 API unit tests, 62 web unit tests and all 32 Chrome browser tests passed. Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
+At the 21:49 checkpoint: 97 database/API integration tests, 27 API unit tests, 62 web unit tests and all 32 Chrome browser tests passed (browser/unit/build checkpoint 21:31). Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
 
 Production dependency audit: zero reported vulnerabilities at the checkpoint after Nodemailer update and compatible body-parser/multer overrides. Full audit retains four low-severity development dependency findings. Audit output is a point-in-time advisory check, not a security guarantee.
 
@@ -50,7 +56,7 @@ Run from apps/api with an isolated `_test` database:
 
 The script opens one transaction, inserts 50,000 synthetic assets in the reserved probe code range, analyzes queries, records 20 warm samples per query and EXPLAIN ANALYZE/BUFFERS evidence, then rolls back. Existing records using probe codes cause a safe conflict; do not run against production. This avoids changing the asset sequence. The probe is intentionally one local DB connection, not an HTTP load test.
 
-Observed p95 milliseconds: catalog first page 1.97; exact asset lookup 0.18; contains search 16.99; asset status counts 6.42. Raw plans are in evidence/scale-probe-2026-10-28.json. These numbers do not establish concurrent-user, attachment/history/import, storage, backup/restore or production availability capacity. Contains search still scans rows. A realistic mixed workload and recovery test remain release gates.
+Observed p95 milliseconds: catalog first page 1.97; exact asset lookup 0.18; contains search 16.99; asset status counts 6.42. Raw plans are in evidence/scale-probe-2026-10-28.json. A separate 40-request concurrent HTTP role-isolation regression passes, plus simultaneous Finance approval and concurrent worker claim tests. These bounded correctness checks are not sustained load/capacity certification. These numbers do not establish concurrent-user, attachment/history/import, storage, backup/restore or production availability capacity. Contains search still scans rows. A realistic mixed workload and recovery test remain release gates.
 
 ## Remaining product gates
 

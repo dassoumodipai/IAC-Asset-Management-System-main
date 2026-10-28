@@ -12,7 +12,7 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
       c,
     );
     await db.query(
-      `UPDATE email_deliveries d SET state='DEAD',last_error_code='EXPIRED' FROM notification_outbox o WHERE d.outbox_id=o.id AND d.state IN ('PENDING','LEASED') AND o.expires_at<now()`,
+      `UPDATE email_deliveries d SET state='DEAD',leased_until=NULL,lease_token=NULL,last_error_code='EXPIRED' FROM notification_outbox o WHERE d.outbox_id=o.id AND d.state IN ('PENDING','LEASED') AND o.expires_at<now()`,
       [],
       c,
     );
@@ -35,9 +35,10 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
   let accepted = false,
     errorCode = 'SMTP_FAILURE',
     sentMessageId = `<${delivery.id}@iac.portal>`;
+  let transport: ReturnType<typeof nodemailer.createTransport> | undefined;
   try {
     const data = JSON.parse(decrypt(outbox.payload.ciphertext, 'AUTH_MAIL_ENCRYPTION_KEY'));
-    const transport = nodemailer.createTransport({
+    transport = nodemailer.createTransport({
       host: process.env.SMTP_HOST || '127.0.0.1',
       port: Number(process.env.SMTP_PORT || 1025),
       secure: process.env.SMTP_SECURE === 'true',
@@ -62,7 +63,6 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
       disableUrlAccess: true,
     });
     accepted = result.accepted?.length === 1;
-    transport.close();
     if (!accepted) errorCode = 'SMTP_REJECTED';
   } catch (error) {
     const code = (error as any)?.code;
@@ -71,6 +71,8 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
     )
       ? code
       : 'SMTP_FAILURE';
+  } finally {
+    transport?.close();
   }
   await db.tx(async (c) => {
     const [claimed] = await db.query(

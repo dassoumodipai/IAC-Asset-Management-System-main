@@ -105,3 +105,47 @@ test('SMTP outage leaves durable pending retry and recovers', async () => {
   assert.equal(state.state, 'ACCEPTED');
   assert.equal(state.attempts, 2);
 });
+
+test('expired authentication delivery is dead-lettered without sending and lease credentials are cleared', async () => {
+  const row = await delivery();
+  await db.query(
+    "UPDATE notification_outbox SET expires_at=now()-interval '1 minute' WHERE id=$1",
+    [row.outbox_id],
+  );
+  await db.query(
+    "UPDATE email_deliveries SET state='LEASED',leased_until=now()-interval '1 minute',lease_token=$2 WHERE id=$1",
+    [row.id, randomUUID()],
+  );
+  await dispatchOnce(db);
+  const [dead] = await db.query('SELECT * FROM email_deliveries WHERE id=$1', [row.id]);
+  assert.equal(dead.state, 'DEAD');
+  assert.equal(dead.last_error_code, 'EXPIRED');
+  assert.equal(dead.attempts, 0);
+  assert.equal(dead.lease_token, null);
+  assert.equal(dead.leased_until, null);
+  assert.equal(
+    (await db.query('SELECT * FROM email_attempts WHERE delivery_id=$1', [row.id])).length,
+    0,
+  );
+  assert.deepEqual(
+    (await db.query('SELECT payload FROM notification_outbox WHERE id=$1', [row.outbox_id]))[0]
+      .payload,
+    {},
+  );
+});
+test('concurrent worker claims do not send the same queued delivery twice', async () => {
+  assert.ok(await checkSmtpAvailable(), 'Concurrent SMTP test requires local fake mail sink');
+  const rows = await Promise.all([delivery(), delivery()]);
+  await Promise.all([dispatchOnce(db), dispatchOnce(db)]);
+  for (const row of rows) {
+    const [sent] = await db.query('SELECT state,attempts FROM email_deliveries WHERE id=$1', [
+      row.id,
+    ]);
+    assert.equal(sent.state, 'ACCEPTED');
+    assert.equal(sent.attempts, 1);
+    assert.equal(
+      (await db.query('SELECT id FROM email_attempts WHERE delivery_id=$1', [row.id])).length,
+      1,
+    );
+  }
+});

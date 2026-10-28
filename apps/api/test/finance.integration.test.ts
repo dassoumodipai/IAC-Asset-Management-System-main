@@ -326,6 +326,24 @@ describe(
       assert.match(summary.body.definitions.approvedAcquisitionCost, /Not net book value/);
       assert.ok(!JSON.stringify(summary.body).includes(employee.email));
     });
+    it('handles concurrent role-isolated HTTP reads while Finance evidence remains unchanged', async () => {
+      const before = await finance.detail(req(admin), asset.id);
+      const requests = Array.from({ length: 40 }, (_, i) =>
+        i % 4 === 0
+          ? call(executive, '/finance/executive-summary')
+          : i % 4 === 1
+            ? call(reviewer, `/finance/assets/${asset.id}`)
+            : i % 4 === 2
+              ? call(employee, `/finance/assets/${asset.id}`)
+              : call(itAdmin, '/finance/queue'),
+      );
+      const responses = await Promise.all(requests);
+      for (const [i, r] of responses.entries()) assert.equal(r.status, i % 4 < 2 ? 200 : 403);
+      const after = await finance.detail(req(admin), asset.id);
+      assert.equal(after.financeVersion, before.financeVersion);
+      assert.equal(after.assetVersion, before.assetVersion);
+      assert.deepEqual(after.history, before.history);
+    });
     it('finance history is append-only at the database boundary', async () => {
       await assert.rejects(
         db.query(`UPDATE asset_finance_events SET reason='changed' WHERE asset_id=$1`, [asset.id]),
