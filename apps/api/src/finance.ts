@@ -270,7 +270,7 @@ export class FinanceService {
       count(*) FILTER(WHERE f.asset_id IS NULL)::int AS unsubmitted_assets,count(*) FILTER(WHERE f.approved_at IS NOT NULL)::int AS approved_assets,
       coalesce(sum(f.approved_cost) FILTER(WHERE f.approved_at IS NOT NULL),0)::text AS approved_acquisition_cost,
       count(*) FILTER(WHERE a.status IN ('Lost','Stolen'))::int AS missing_assets,
-      count(*) FILTER(WHERE a.warranty_expiry BETWEEN current_date AND current_date+30)::int AS warranty_expiring
+      count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring
       FROM assets a LEFT JOIN asset_finance f ON f.asset_id=a.id`);
       const [tickets] = await this.db.query(
         `SELECT count(*) FILTER(WHERE status<>'COMPLETED')::int AS open_tickets,count(*) FILTER(WHERE status<>'COMPLETED' AND priority='HIGH')::int AS high_priority_open FROM tickets`,

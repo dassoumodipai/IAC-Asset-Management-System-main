@@ -344,6 +344,28 @@ describe(
       assert.equal(after.assetVersion, before.assetVersion);
       assert.deepEqual(after.history, before.history);
     });
+    it('executive warranty window explicitly uses the organization date', async () => {
+      const original = db.query.bind(db);
+      let predicate = '';
+      db.query = async (sql: string, values: any[] = [], client?: any) => {
+        if (sql.includes('AS warranty_expiring')) predicate = sql;
+        return original(sql, values, client);
+      };
+      let report: any;
+      try {
+        report = await finance.executive(req(executive));
+      } finally {
+        db.query = original;
+      }
+      assert.match(
+        predicate,
+        /warranty_expiry BETWEEN \(now\(\) AT TIME ZONE 'Asia\/Kolkata'\)::date/,
+      );
+      const [expected] = await db.query(
+        `SELECT count(*)::int AS n FROM assets WHERE warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30`,
+      );
+      assert.equal(report.warrantyExpiring, expected.n);
+    });
     it('executive totals and department breakdown share one database snapshot during writes', async () => {
       const original = db.query.bind(db);
       let inserted = false;

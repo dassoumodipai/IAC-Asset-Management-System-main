@@ -42,7 +42,7 @@ For a synthetic real-API recorded walkthrough, set `IAC_RECORD_DEMO=1` when runn
 
 ## Verification evidence
 
-At the 22:17 checkpoint: 101 database/API integration tests, 27 API unit tests, 62 web unit tests and all 33 Chrome browser tests passed. Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
+At the 22:26 checkpoint: 102 database/API integration tests, 27 API unit tests, 62 web unit tests and all 33 Chrome browser tests passed. Lint, TypeScript and production build passed. No production system, real company records or real email recipients were used.
 
 Production dependency audit: zero reported vulnerabilities at the checkpoint after Nodemailer update and compatible body-parser/multer overrides. Full audit retains four low-severity development dependency findings. Audit output is a point-in-time advisory check, not a security guarantee.
 
@@ -83,3 +83,5 @@ Compiled-runtime smoke: in a separate clean directory, production-only `npm ci -
 `npm run probe:load:test` creates a new loopback disposable `_test` database, applies migrations, generates50000synthetic assets/1000Finance submissions and runs20concurrent local HTTP readers for10seconds. It exercises catalog/search, Finance queue/history, Executive summary and forbidden Employee/IT calls. The28October checkpoint completed3004requests with0unexpected statuses/payloads/errors and unchanged Finance evidence. Raw aggregate latency is in docs/evidence/mixed-http-probe-2026-10-28.json.
 
 This is a short correctness/latency probe, not sustained production capacity or an SLA. It excludes writes, files, imports, WAN latency, real users and SMTP. The script requires local test-owner CREATE DATABASE rights and deletes its disposable database. Do not run it against production or while sharing scarce resources with a live service.
+
+Executive warranty due-window uses the organization date in Asia/Kolkata, matching existing Admin reports rather than the database server timezone. Regression compares the report to the explicit organization-date predicate.
