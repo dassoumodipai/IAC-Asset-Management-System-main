@@ -40,42 +40,53 @@ export class StocktakeService {
       })
       .strict()
       .parse(body);
-    return this.db.tx(async (c) => {
-      await this.db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ', [], c);
-      for (const [table, value] of [
-        ['departments', p.departmentId],
-        ['locations', p.locationId],
-      ])
-        if (
-          value &&
-          !(await this.db.query(`SELECT 1 FROM ${table} WHERE id=$1`, [value], c)).length
-        )
-          throw new NotFoundException('Scope reference not found');
-      const [run] = await this.db.query(
-        'INSERT INTO stocktake_runs(name,scope,created_by)VALUES($1,$2,$3)RETURNING *',
-        [
-          p.name,
-          {
-            departmentId: p.departmentId ?? null,
-            locationId: p.locationId ?? null,
-            definition:
-              'All asset statuses at creation; current custody and versions frozen as evidence.',
-          },
-          req.user.id,
-        ],
-        c,
-      );
-      await this.db.query(
-        `INSERT INTO stocktake_expected(run_id,asset_id,asset_code,asset_version,snapshot) SELECT $1,a.id,a.asset_code,a.version,jsonb_build_object('description',a.description,'status',a.status,'serialNumber',a.serial_number,'departmentId',a.department_id,'locationId',a.location_id,'custodianId',x.user_id,'custodianName',u.display_name) FROM assets a LEFT JOIN assignments x ON x.asset_id=a.id AND x.ended_at IS NULL LEFT JOIN users u ON u.id=x.user_id WHERE ($2::uuid IS NULL OR a.department_id=$2) AND ($3::uuid IS NULL OR a.location_id=$3)`,
-        [run.id, p.departmentId ?? null, p.locationId ?? null],
-        c,
-      );
-      await this.db.audit(c, req.user, 'STOCKTAKE', run.id, 'STOCKTAKE_CREATED', {
-        name: p.name,
-        scope: run.scope,
-      });
-      return camel(run);
-    });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.db.tx(async (c) => {
+          await this.db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ', [], c);
+          for (const [table, value] of [
+            ['departments', p.departmentId],
+            ['locations', p.locationId],
+          ])
+            if (
+              value &&
+              !(await this.db.query(`SELECT 1 FROM ${table} WHERE id=$1`, [value], c)).length
+            )
+              throw new NotFoundException('Scope reference not found');
+          const [run] = await this.db.query(
+            'INSERT INTO stocktake_runs(name,scope,created_by)VALUES($1,$2,$3)RETURNING *',
+            [
+              p.name,
+              {
+                departmentId: p.departmentId ?? null,
+                locationId: p.locationId ?? null,
+                definition:
+                  'All asset statuses at creation; current custody and versions frozen as evidence.',
+              },
+              req.user.id,
+            ],
+            c,
+          );
+          await this.db.query(
+            `INSERT INTO stocktake_expected(run_id,asset_id,asset_code,asset_version,snapshot) SELECT $1,a.id,a.asset_code,a.version,jsonb_build_object('description',a.description,'status',a.status,'serialNumber',a.serial_number,'departmentId',a.department_id,'locationId',a.location_id,'custodianId',x.user_id,'custodianName',u.display_name) FROM assets a LEFT JOIN assignments x ON x.asset_id=a.id AND x.ended_at IS NULL LEFT JOIN users u ON u.id=x.user_id WHERE ($2::uuid IS NULL OR a.department_id=$2) AND ($3::uuid IS NULL OR a.location_id=$3)`,
+            [run.id, p.departmentId ?? null, p.locationId ?? null],
+            c,
+          );
+          await this.db.audit(c, req.user, 'STOCKTAKE', run.id, 'STOCKTAKE_CREATED', {
+            name: p.name,
+            scope: run.scope,
+          });
+          return camel(run);
+        });
+      } catch (error) {
+        if ((error as { code?: string }).code !== '40001') throw error;
+        if (attempt >= 2)
+          throw new ConflictException(
+            'Inventory changed repeatedly during snapshot creation. No count was saved. Retry when activity settles.',
+          );
+        await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+      }
+    }
   }
   async detail(req: AuthRequest, value: string, query: unknown = {}) {
     requireRole(req, 'ADMIN');

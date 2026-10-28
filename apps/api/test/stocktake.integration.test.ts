@@ -211,3 +211,67 @@ test('stocktake freezes scope, retains corrections and discrepancies without cha
   } while (cursor);
   assert.equal(seen.size, 3);
 });
+
+test('snapshot creation safely retries serialization abort without duplicate committed run', async () => {
+  const user = randomUUID();
+  await db.query("INSERT INTO users(id,email,display_name)VALUES($1,$2,'Snapshot retry')", [
+    user,
+    `retry-${user}@example.org`,
+  ]);
+  const original = db.query.bind(db);
+  let injected = false;
+  (db as any).query = async (sql: string, values: any[] = [], client?: any) => {
+    if (!injected && sql.startsWith('INSERT INTO stocktake_expected')) {
+      injected = true;
+      const e: any = Error('synthetic serialization abort');
+      e.code = '40001';
+      throw e;
+    }
+    return original(sql, values, client);
+  };
+  try {
+    const run = await service.create(req(user), { name: 'Retried snapshot' });
+    assert(injected);
+    assert.equal(
+      (await original('SELECT count(*)::int n FROM stocktake_runs WHERE created_by=$1', [user]))[0]
+        .n,
+      1,
+    );
+    assert(run.id);
+  } finally {
+    (db as any).query = original;
+  }
+});
+
+test('repeated snapshot serialization abort is bounded and leaves no count', async () => {
+  const user = randomUUID();
+  await db.query("INSERT INTO users(id,email,display_name)VALUES($1,$2,'Bounded retry')", [
+    user,
+    `retry-${user}@example.org`,
+  ]);
+  const original = db.query.bind(db);
+  let calls = 0;
+  (db as any).query = async (sql: string, values: any[] = [], client?: any) => {
+    if (sql.startsWith('INSERT INTO stocktake_expected')) {
+      calls++;
+      const e: any = Error('synthetic serialization abort');
+      e.code = '40001';
+      throw e;
+    }
+    return original(sql, values, client);
+  };
+  try {
+    await assert.rejects(
+      () => service.create(req(user), { name: 'Never committed' }),
+      /No count was saved/,
+    );
+    assert.equal(calls, 3);
+    assert.equal(
+      (await original('SELECT count(*)::int n FROM stocktake_runs WHERE created_by=$1', [user]))[0]
+        .n,
+      0,
+    );
+  } finally {
+    (db as any).query = original;
+  }
+});

@@ -187,23 +187,170 @@ try {
     };
   });
   const errorCount = results.reduce((s, r) => s + r.errors, 0);
+  let mixed;
+  if (process.argv.includes('--mixed')) {
+    const { default: Excel } = await import('exceljs');
+    const wb = new Excel.Workbook();
+    const ws = wb.addWorksheet('Invoice');
+    ws.addRow(['Supplier', 'Synthetic Systems']);
+    ws.addRow(['Invoice Number', 'LOAD-1042']);
+    ws.addRow(['Invoice Date', '2026-10-28']);
+    ws.addRow(['Grand Total', 'INR 1234.50']);
+    const invoice = {
+      filename: 'Synthetic-invoice.xlsx',
+      data: Buffer.from(await wb.xlsx.writeBuffer()).toString('base64'),
+    };
+    let failures = 0,
+      readCount = 0,
+      done = false;
+    const timings = [];
+    async function write(user, path, body, version) {
+      const t = performance.now();
+      const r = await fetch(base + path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: process.env.APP_ORIGIN || 'http://127.0.0.1:5173',
+          Cookie: `iac_dev_session=${user.session}; iac_dev_csrf=${user.csrf}`,
+          'X-CSRF-Token': user.csrf,
+          ...(version ? { 'If-Match': `"${version}"` } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30000),
+      });
+      const result = await r.json();
+      timings.push(performance.now() - t);
+      if (r.status !== 201) throw Error('Mixed mutation failed ' + r.status);
+      return result;
+    }
+    const startMixed = performance.now();
+    const readers = Array.from({ length: 10 }, async () => {
+      while (!done) {
+        try {
+          const r = await fetch(base + '/finance/executive-summary', {
+            headers: { Cookie: `iac_dev_session=${executive.session}` },
+            signal: AbortSignal.timeout(30000),
+          });
+          const b = await r.json();
+          if (r.status !== 200 || b.totalAssets !== 50000 || b.activity.length !== 12) failures++;
+          readCount++;
+        } catch {
+          failures++;
+        }
+      }
+    });
+    try {
+      const writes = await Promise.allSettled([
+        ...Array.from({ length: 5 }, (_, worker) =>
+          (async () => {
+            for (let n = 0; n < 5; n++) {
+              const a = assets[10 + worker * 5 + n];
+              const b = await write(
+                finance,
+                `/finance/assets/${a.id}/review`,
+                {
+                  decision: 'APPROVE',
+                  reason: 'Synthetic concurrent mixed load review',
+                  purchaseCost: '1234.50',
+                  purchaseDate: '2026-10-28',
+                  invoiceNumber: 'MIXED-' + n,
+                  supplier: 'Synthetic Systems',
+                },
+                1,
+              );
+              if (b.state !== 'APPROVED') throw Error('Approval state mismatch');
+            }
+          })(),
+        ),
+        ...Array.from({ length: 2 }, (_, worker) =>
+          (async () => {
+            for (let n = 0; n < 3; n++) {
+              const a = assets[100 + worker * 3 + n];
+              const b = await write(finance, `/finance/assets/${a.id}/invoices`, invoice, 1);
+              if (b.suggestions.purchaseCost?.value !== '1234.50')
+                throw Error('Invoice extraction mismatch');
+            }
+          })(),
+        ),
+        (async () => {
+          const run = await write(registrar, '/stocktake', {
+            name: 'Synthetic concurrent 50k snapshot',
+          });
+          for (let n = 0; n < 5; n++)
+            await write(
+              registrar,
+              `/stocktake/${run.id}/observations`,
+              {
+                assetCode: assets[200 + n].asset_code,
+                outcome: 'SEEN',
+                note: 'Synthetic workload observation, not a physical count',
+                requestKey: randomUUID(),
+              },
+              1,
+            );
+          await write(
+            registrar,
+            `/stocktake/${run.id}/close`,
+            { reason: 'Synthetic workload completed' },
+            1,
+          );
+          const [count] = (
+            await pool.query('SELECT count(*)::int n FROM stocktake_expected WHERE run_id=$1', [
+              run.id,
+            ])
+          ).rows;
+          if (count.n !== 50000) throw Error('Stocktake snapshot count mismatch');
+        })(),
+      ]);
+      const rejected = writes.find((r) => r.status === 'rejected');
+      if (rejected) throw rejected.reason;
+    } catch (e) {
+      failures++;
+      throw e;
+    } finally {
+      done = true;
+      await Promise.all(readers);
+    }
+    const [approved] = (
+      await pool.query("SELECT count(*)::int n FROM asset_finance WHERE state='APPROVED'")
+    ).rows;
+    const [invoices] = (await pool.query('SELECT count(*)::int n FROM finance_invoice_evidence'))
+      .rows;
+    if (approved.n !== (restricted ? 26 : 25) || invoices.n !== 6)
+      throw Error('Mixed persisted reconciliation failed');
+    timings.sort((a, b) => a - b);
+    mixed = {
+      durationMs: performance.now() - startMixed,
+      readers: 10,
+      readCount,
+      mutationCount: timings.length,
+      writeP95Ms: timings[Math.ceil(timings.length * 0.95) - 1],
+      failures,
+      financeApprovals: 25,
+      invoiceExtractions: 6,
+      stocktakeExpected: 50000,
+      observations: 5,
+      persistedReconciled: true,
+    };
+  }
   const evidence = (await pool.query('SELECT count(*)::int AS n FROM asset_finance_events')).rows[0]
     .n;
-  if (evidence !== (restricted ? 1001 : 1000))
+  if (evidence !== (restricted ? 1001 : 1000) + (mixed ? 25 : 0))
     throw new Error('Read-only workload changed Finance evidence');
   console.log(
     JSON.stringify(
       {
         restrictedRuntimeRole: restricted,
+        mixed,
         scope:
-          '20 concurrent local HTTP readers over50000synthetic assets and1000Finance records; optional restricted-role run first performs one synthetic Finance approval; no concurrent mutation workload, files, production traffic or SMTP',
+          '20 concurrent local HTTP readers over50000synthetic assets and1000Finance records; optional restricted-role run first performs one synthetic Finance approval; followed by optional bounded mixed approval/invoice/stocktake workload; no production traffic or SMTP',
         durationMs: elapsed,
         totalRequests: counter,
         errorCount,
         results,
-        financeEvidenceUnchanged: true,
+        financeEvidenceUnchangedByReads: true,
         limits:
-          'Local PostgreSQL14/Node24 warm run. Not sustained production capacity, WAN latency, write contention, attachment/import load, availability or an SLA.',
+          'Local PostgreSQL14/Node24 warm run. Optional mixed slice is small and bounded, not sustained production capacity, WAN latency, broad write contention, large photos/imports, availability or an SLA.',
       },
       null,
       2,
