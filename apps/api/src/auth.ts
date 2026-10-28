@@ -765,7 +765,7 @@ export class AuthService {
       `SELECT u.id,u.email,u.display_name AS "displayName",u.employee_reference AS "employeeReference",
               u.designation,u.department_id AS "departmentId",d.name AS department,u.pending_email AS "pendingEmail",u.state,u.version,
               u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",
-              u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",
+              u.portal_accepted_at AS "portalAcceptedAt",u.portal_notice_version AS "portalNoticeVersion",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",
               coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles
        FROM users u
        LEFT JOIN departments d ON d.id=u.department_id
@@ -773,7 +773,9 @@ export class AuthService {
        WHERE ${where.join(' AND ')} GROUP BY u.id,d.name ORDER BY u.created_at DESC,u.id DESC LIMIT $${values.length}`,
       values,
     );
-    const items = rows.slice(0, input.limit),
+    const items = rows
+        .slice(0, input.limit)
+        .map((row) => ({ ...row, currentNoticeVersion: configuration().noticeVersion })),
       last = items.at(-1);
     return {
       items,

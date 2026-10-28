@@ -187,6 +187,32 @@ describe(
       assert.equal(after.summary.total, before.summary.total - 1);
       assert.equal(after.items.length, after.summary.total);
     });
+    it('new custody rejects obsolete portal acceptance and succeeds after current acceptance', async () => {
+      const [asset] = await db.query(
+        "INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level)VALUES('IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Mouse','Portal version custody check','Owned','In Store','Good','Low')RETURNING id,version",
+      );
+      await db.query("UPDATE users SET portal_notice_version='obsolete' WHERE id=$1", [other.id]);
+      await assert.rejects(() =>
+        domain.assign(req(admin, asset.version), asset.id, { userId: other.id }),
+      );
+      assert.equal(
+        (await db.query('SELECT count(*)::int n FROM assignments WHERE asset_id=$1', [asset.id]))[0]
+          .n,
+        0,
+      );
+      await db.query('UPDATE users SET portal_notice_version=$2 WHERE id=$1', [
+        other.id,
+        configuration().noticeVersion,
+      ]);
+      const assigned = await domain.assign(req(admin, asset.version), asset.id, {
+        userId: other.id,
+      });
+      assert.equal(assigned.userId, other.id);
+      await domain.returnAsset(req(admin, assigned.version), assigned.id, {
+        condition: 'Good',
+        reason: 'Finish synthetic portal eligibility check',
+      });
+    });
     it('validates paging and includes people without assigned equipment', async () => {
       const p = await equipment.people(req(finance), { q: tag });
       assert.equal(p.items.find((u: any) => u.id === other.id).equipmentCount, 0);

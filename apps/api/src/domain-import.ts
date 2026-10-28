@@ -2,6 +2,7 @@ import { ConflictException, UnprocessableEntityException } from '@nestjs/common'
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { TicketDomain } from './domain-tickets';
+import { configuration } from './config';
 import { AuthRequest, assertVersion, requireRole } from './security';
 import {
   assetInput,
@@ -355,8 +356,8 @@ export class ImportDomain extends TicketDomain {
         });
       else {
         const users = await this.db.query(
-          `SELECT u.id FROM users u JOIN approved_emails e ON e.email=u.email JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL`,
-          [identity.email],
+          `SELECT u.id FROM users u JOIN approved_emails e ON e.email=u.email JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL AND u.portal_notice_version=$2`,
+          [identity.email, configuration().noticeVersion],
           c,
         );
         if (users.length === 1) custodianId = users[0].id;

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { Actor, AuthRequest } from './security';
 import { Db } from './db';
+import { configuration } from './config';
 
 export const text = (max = 5000) => z.string().trim().min(1).max(max);
 export const uuid = z.string().uuid();
@@ -424,8 +425,8 @@ export async function eligibleEmployee(
   return found(
     (
       await db.query(
-        `SELECT u.id,u.email FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL)) FOR SHARE OF u`,
-        [userId, allowInvited],
+        `SELECT u.id,u.email FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL AND u.portal_notice_version=$3)) FOR SHARE OF u`,
+        [userId, allowInvited, configuration().noticeVersion],
         c,
       )
     )[0],

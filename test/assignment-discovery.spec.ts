@@ -380,3 +380,15 @@ test('A recipient who loses portal eligibility during review cannot be submitted
   expect(state.writes).toEqual([]);
   expect(state.unexpected).toEqual([]);
 });
+
+test('obsolete portal notice acceptance is not an eligible custody recipient', async ({ page }) => {
+  const state = await mockApi(page);
+  state.users[0].portalNoticeVersion = 'obsolete';
+  await page.goto(`/assets/${assetId}/assign`);
+  await page.getByLabel('Approved employee', { exact: true }).click();
+  await expect(page.getByRole('option', { name: /Synthetic Recipient/ })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Confirm assignment', exact: true }),
+  ).toBeDisabled();
+  expect(state.writes).toEqual([]);
+});

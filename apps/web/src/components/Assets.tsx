@@ -1339,6 +1339,7 @@ export function AssignmentForm() {
         user.state === 'ACTIVE' &&
         user.emailVerifiedAt &&
         user.portalAcceptedAt &&
+        user.portalNoticeVersion === (user.currentNoticeVersion ?? '1') &&
         user.roles.includes('EMPLOYEE') &&
         user.id !== asset.data?.currentAssignment?.userId,
     ) ?? [];
