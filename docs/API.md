@@ -224,3 +224,7 @@ See `INVOICE_EVIDENCE.md` for formats, limits, review and operational gates.
 `GET /notifications/workflow` accepts `filter=ALL|UNREAD`, `limit` (1-100) and opaque `cursor`. Returns account-scoped workflow notices with actual permitted target paths, counts and `nextCursor`. `POST /notifications/workflow/:id/read` and `POST /notifications/workflow/read-all` require CSRF. Repeated reads are idempotent; another user's or currently inaccessible notice is 404. `/notifications/unread-count` includes announcements and workflows. See `WORKFLOW_NOTIFICATIONS.md` for recipient rules, event coverage and limits.
 
 Executive summary includes `activity`, 12 zero-filled Monday-start Kolkata weeks with `approvalEvents`, `ticketsCreated`, `ticketsCompleted`, and `partialWeek`. It counts recorded events, including repeat approvals of an amended asset, not purchases, money or historical backlog. Scope definitions travel with the response. No ticket/private invoice text or user identity is returned.
+
+## Stocktake
+
+Admin only: `GET/POST /stocktake`, `GET /stocktake/:id` (after asset-code cursor, limit), `POST /stocktake/:id/observations` (assetCode, outcome SEEN/NOT_FOUND/MISMATCH, note, UUID requestKey), `POST /stocktake/:id/close` (reason), `GET /stocktake/:id/assets/:asset/history` (after observation-ID cursor, limit). Mutations require CSRF, observations/close require run If-Match. Create freezes a snapshot and optionally accepts departmentId/locationId. No inventory/custody/Finance mutations follow from observations. See `STOCKTAKE.md`.

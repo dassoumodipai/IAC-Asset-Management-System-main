@@ -1,6 +1,6 @@
 # What is connected now, and what remains
 
-Checkpoint 29 October 2026, 00:35 IST. Local tested source is ahead of the partially published fork branch. No production deployment is implied.
+Checkpoint 29 October 2026, 00:43 IST. Local tested source is ahead of the partially published fork branch. No production deployment is implied.
 
 | Capability | Current implementation | What can be configured now | Missing or later |
 |---|---|---|---|
@@ -40,3 +40,5 @@ Support triage now exposes category/search and team ownership views (Any/Mine/Un
 - Executive weekly activity counts are source-recorded approval events (including amendments), ticket creation and completion in Kolkata Monday-start weeks. Current week is partial; zeros are recorded-event zeros, not proof no historical activity occurred. No spend, backlog, SLA or historical valuation trend is implied.
 
 Latest source verification and measurements are recorded at each handoff. Earlier counts above are historical checkpoints, not the final test inventory. PR remains held until the user asks. No production deployment, external mail, private real inventory or upstream merge was performed.
+
+Physical stocktake now supports Admin frozen expected snapshots, immutable per-item Seen/Not found/Mismatch observations, explicit unobserved/extra counts, correction history and close without mutating inventory or Finance. It is an evidence slice, not automatic reconciliation/dual-control signoff. See `STOCKTAKE.md`.

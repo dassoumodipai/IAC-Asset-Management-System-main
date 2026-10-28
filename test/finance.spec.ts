@@ -776,3 +776,57 @@ test('Executive weekly activity renders defined source counts at desktop and mob
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: '/downloads/iac-executive-trends-mobile.png' });
 });
+
+test('Admin freezes stocktake, records evidence and closes without changing inventory', async ({
+  page,
+  context,
+}) => {
+  const id = randomUUID();
+  const [asset] = (
+    await pool.query(
+      `INSERT INTO assets(id,asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by)VALUES($1,'IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Dell Latitude count example','Owned','In Store','Good','Low',$2)RETURNING asset_code`,
+      [id, admin.id],
+    )
+  ).rows;
+  await signIn(context, admin);
+  await page.goto('/admin/stocktake');
+  const countName = 'October Operations count ' + randomUUID().slice(0, 8);
+  await page.getByLabel('Count name').fill(countName);
+  await page.getByRole('button', { name: 'Create frozen stocktake' }).click();
+  await page.getByRole('link', { name: countName, exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: 'Record an observation' })).toBeVisible();
+  const run = page.url().split('/').pop();
+  await page.getByLabel('Observed asset ID').fill(asset.asset_code);
+  await page.getByLabel('Observation', { exact: true }).selectOption('MISMATCH');
+  await page
+    .getByLabel('Observation evidence or difference')
+    .fill('Physical serial differs from expected label. Investigate before correction.');
+  await page.getByRole('button', { name: 'Save observation only' }).click();
+  await expect(
+    page.getByText('Observation saved. Asset, custody and Finance values are unchanged.'),
+  ).toBeVisible();
+  const [record] = (
+    await pool.query('SELECT * FROM stocktake_observations WHERE run_id=$1 AND asset_id=$2', [
+      run,
+      id,
+    ])
+  ).rows;
+  expect(record.outcome).toBe('MISMATCH');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: '/downloads/iac-stocktake-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: '/downloads/iac-stocktake-mobile.png' });
+  await page
+    .getByLabel('Closing reason')
+    .fill('Count completed with exceptions. No inventory correction approved.');
+  await page.getByRole('button', { name: 'Close count', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Count closed', exact: true })).toBeVisible();
+  expect((await pool.query('SELECT version,status FROM assets WHERE id=$1', [id])).rows[0]).toEqual(
+    { version: 1, status: 'In Store' },
+  );
+  await signIn(context, finance);
+  await page.goto('/admin/stocktake');
+  await expect(page.getByText('Admin access required', { exact: true })).toBeVisible();
+});

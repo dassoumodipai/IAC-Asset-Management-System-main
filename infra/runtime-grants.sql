@@ -23,3 +23,6 @@ GRANT INSERT ON asset_finance_events TO iac_runtime;
 GRANT INSERT ON finance_invoice_evidence TO iac_runtime;
 
 GRANT INSERT ON workflow_notifications,workflow_notification_reads TO iac_runtime;
+
+GRANT INSERT,UPDATE ON stocktake_runs TO iac_runtime;
+GRANT INSERT ON stocktake_expected,stocktake_observations TO iac_runtime;

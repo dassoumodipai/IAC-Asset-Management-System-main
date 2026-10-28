@@ -1,0 +1,11 @@
+# Physical stocktake evidence
+
+Admin can create a count, freezing expected asset IDs, versions, description, status, location/department and current custody. Creation uses a repeatable database snapshot. The current UI starts an organization-wide run; the API can optionally scope by department and/or location. All asset statuses are included and this is stated, not silently treated as only active equipment.
+
+Observations record Seen, Not found or Mismatch with a required evidence note, current asset version, author and time. The expected list and observations are append-only. A correction creates another observation; history preserves prior observations and the latest committed sequence drives the summary. The UI accepts a registered asset ID and shows extras found outside the original scope. An entirely unknown item must be separately registered before it can be recorded as an extra. No item is declared missing merely because it is unobserved.
+
+Run close and observation writes serialize on the run. Closing prevents further observations, retains discrepancies/unobserved counts and requires a reason and current version. Retried observation request keys return the same evidence; the same key with different contents is rejected. Observation history and expected lists are paged.
+
+This is evidence collection, not automatic inventory reconciliation. Nothing in a stocktake changes asset status, custody, financial values, disposal, loss approval or employee liability. Frozen/current/observed versions are displayed so a changed record can be investigated. The user must take separately authorized corrections through existing workflows. A recorded Seen is the operator's statement, not independent proof the physical scan occurred.
+
+Admin only can view count records or private custody snapshots. Finance, Executive, IT and Employee receive no new access through these routes. This first slice does not implement dual-control reconciliation approval, auditor delegation, offline scanning, unknown-equipment intake, photo evidence, location-route planning, exports or a legal retention policy. Latest 50 counts are listed; direct authorized count IDs remain accessible. Physical verification process and company signoff still need IAC policy.

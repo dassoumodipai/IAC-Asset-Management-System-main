@@ -41,6 +41,9 @@ const tables = [
   'finance_invoice_evidence',
   'workflow_notifications',
   'workflow_notification_reads',
+  'stocktake_runs',
+  'stocktake_expected',
+  'stocktake_observations',
   'audit_events',
   'notification_outbox',
   'email_deliveries',
@@ -104,6 +107,7 @@ try {
     `SELECT count(*)::int AS n FROM asset_finance_events e LEFT JOIN users u ON u.id=e.actor_id WHERE u.id IS NULL`,
     `SELECT count(*)::int AS n FROM finance_invoice_evidence WHERE encode(sha256(content),'hex')<>sha256`,
     `SELECT count(*)::int AS n FROM workflow_notification_reads r JOIN workflow_notifications n ON n.id=r.notification_id WHERE r.user_id<>n.user_id`,
+    `SELECT count(*)::int AS n FROM stocktake_observations o LEFT JOIN stocktake_runs r ON r.id=o.run_id LEFT JOIN assets a ON a.id=o.asset_id WHERE r.id IS NULL OR a.id IS NULL`,
   ];
   for (const sql of checks)
     if ((await restored.query(sql)).rows[0].n !== 0)
@@ -120,6 +124,18 @@ try {
     const evidence = (await client.query('SELECT id FROM finance_invoice_evidence LIMIT 1'))
       .rows[0];
     if (!evidence) throw new Error('Need synthetic invoice evidence for restore check');
+    const countObservation = (await client.query('SELECT id FROM stocktake_observations LIMIT 1'))
+      .rows[0];
+    if (!countObservation) throw Error('Need stocktake evidence for restore check');
+    await client.query('SAVEPOINT stocktake_immutable');
+    let stocktakeRejected = false;
+    try {
+      await client.query('DELETE FROM stocktake_observations WHERE id=$1', [countObservation.id]);
+    } catch (e) {
+      stocktakeRejected = /append only/.test(e.message);
+    }
+    await client.query('ROLLBACK TO SAVEPOINT stocktake_immutable');
+    if (!stocktakeRejected) throw Error('Restored stocktake observation accepted mutation');
     await client.query('SAVEPOINT invoice_immutable');
     let invoiceRejected = false;
     try {
@@ -161,6 +177,7 @@ try {
         financeMutationRejected: true,
         invoiceBytesDigestMatched: true,
         invoiceMutationRejected: true,
+        stocktakeMutationRejected: true,
         limits:
           'Not production PITR, encrypted-backup proof, key recovery, RPO/RTO guarantee or disaster recovery certification',
       },

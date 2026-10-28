@@ -309,6 +309,31 @@ describe(
       assert.equal((await call(employee, '/finance/executive-summary')).status, 403);
       assert.equal((await call(itAdmin, '/finance/executive-summary')).status, 403);
     });
+    it('stocktake HTTP requires Admin, CSRF and close version', async () => {
+      assert.equal((await call(undefined, '/stocktake')).status, 401);
+      for (const u of [employee, itAdmin, reviewer, executive])
+        assert.equal((await call(u, '/stocktake')).status, 403);
+      assert.equal(
+        (await call(admin, '/stocktake', { name: 'No CSRF' }, undefined, false)).status,
+        403,
+      );
+      const result = await call(admin, '/stocktake', { name: 'HTTP inventory count' });
+      assert.equal(result.status, 201);
+      const id = result.body.id;
+      assert.equal(
+        (await call(admin, `/stocktake/${id}/close`, { reason: 'Close without version' })).status,
+        428,
+      );
+      assert.equal(
+        (await call(admin, `/stocktake/${id}/close`, { reason: 'Stale close' }, 99)).status,
+        412,
+      );
+      assert.equal(
+        (await call(admin, `/stocktake/${id}/close`, { reason: 'No inventory correction' }, 1))
+          .status,
+        201,
+      );
+    });
     it('invoice HTTP enforces session, CSRF, role, version and private binary retrieval', async () => {
       const Excel = (await import('exceljs')).default,
         wb = new Excel.Workbook();
