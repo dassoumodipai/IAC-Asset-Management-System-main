@@ -627,6 +627,18 @@ a.metric:hover {
 .search-form .button {
   min-height: 44px;
 }
+.staff-search-bar {
+  align-items: flex-end;
+  margin: 0 0 18px;
+}
+.staff-search-bar > .field {
+  flex: 1 1 280px;
+}
+.staff-search-count {
+  flex: 0 0 auto;
+  margin: 0 0 10px;
+  white-space: nowrap;
+}
 .filter-hint {
   flex: 2;
   font-size: 11px;

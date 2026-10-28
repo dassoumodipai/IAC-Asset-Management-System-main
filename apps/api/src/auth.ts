@@ -673,6 +673,10 @@ export class AuthService {
         `EXISTS(SELECT 1 FROM user_roles filter_role WHERE filter_role.user_id=u.id AND filter_role.role_code=$${values.length})`,
       );
     }
+    const [{ count: totalCount }] = await this.db.query(
+      `SELECT count(*)::int AS count FROM users u WHERE ${where.join(' AND ')}`,
+      values,
+    );
     if (input.cursor) {
       let after: { createdAt: string; id: string };
       try {
@@ -705,6 +709,7 @@ export class AuthService {
       last = items.at(-1);
     return {
       items,
+      totalCount,
       nextCursor:
         rows.length > input.limit
           ? Buffer.from(

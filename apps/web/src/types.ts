@@ -1,5 +1,5 @@
 export type Role = 'ADMIN' | 'EMPLOYEE' | 'IT_ADMIN';
-export type Page<T> = { items: T[]; nextCursor: string | null };
+export type Page<T> = { items: T[]; nextCursor: string | null; totalCount?: number };
 export interface User {
   id: string;
   email: string;

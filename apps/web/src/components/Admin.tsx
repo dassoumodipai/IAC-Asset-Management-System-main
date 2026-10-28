@@ -20,7 +20,8 @@ import {
   displayDate,
 } from './ui';
 export function UserAdmin() {
-  const query = usePages<User>('/users');
+  const [staffSearch, setStaffSearch] = useState('');
+  const query = usePages<User>('/users', { q: staffSearch.trim() || undefined });
   const refs = useQuery({
     queryKey: ['references'],
     queryFn: ({ signal }) => api<References>('/references', { signal }),
@@ -429,13 +430,35 @@ export function UserAdmin() {
           </form>
         </Panel>
       ) : null}
-      <Panel title="Staff accounts">
+      <Panel title={`Staff accounts${query.data?.pages[0]?.totalCount !== undefined ? ` · ${query.data.pages[0].totalCount}` : ''}`}>
         <ErrorNotice
           error={query.error}
           retry={() => {
             void query.refetch();
           }}
         />
+        {!query.isPending ? (
+          <div className="filter-bar staff-search-bar">
+            <Field label="Search staff" htmlFor="staff-search">
+              <input
+                id="staff-search"
+                type="search"
+                value={staffSearch}
+                onChange={(event) => setStaffSearch(event.target.value)}
+                placeholder="Search name or work email"
+                maxLength={120}
+                autoComplete="off"
+              />
+            </Field>
+            <p className="muted small-text staff-search-count" aria-live="polite">
+              {query.isPlaceholderData
+                ? 'Searching...'
+                : query.data?.pages[0]?.totalCount !== undefined
+                ? `${query.data.pages[0].totalCount} ${query.data.pages[0].totalCount === 1 ? 'staff account' : 'staff accounts'}${staffSearch.trim() ? ' match your search' : ''}`
+                : `${users.length} loaded`}
+            </p>
+          </div>
+        ) : null}
         {query.isPending ? (
           <Loading />
         ) : users.length ? (
