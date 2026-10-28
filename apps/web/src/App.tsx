@@ -1,3 +1,4 @@
+import { LifecyclePage } from './components/Lifecycle';
 import { StocktakePage } from './components/Stocktake';
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent, ReactNode } from 'react';
@@ -352,6 +353,7 @@ function Shell() {
                 </span>
                 People &amp; access
               </NavLink>
+              <NavLink to="/admin/lifecycle">Lifecycle attention</NavLink>
               <NavLink to="/admin/stocktake">Physical stocktake</NavLink>
               <NavLink to="/admin/imports">
                 <span className="nav-icon">
@@ -653,6 +655,7 @@ export function App() {
               <Route path="/assets/:id/assign" element={<AssignmentForm />} />
               <Route path="/master-control" element={<MasterControl />} />
               <Route path="/admin/users" element={<UserAdmin />} />
+              <Route path="/admin/lifecycle" element={<LifecyclePage />} />
               <Route path="/admin/stocktake" element={<StocktakePage />} />
               <Route path="/admin/stocktake/:id" element={<StocktakePage />} />
               <Route path="/admin/imports" element={<ImportsView />} />

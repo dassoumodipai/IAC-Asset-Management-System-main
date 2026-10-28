@@ -830,3 +830,46 @@ test('Admin freezes stocktake, records evidence and closes without changing inve
   await page.goto('/admin/stocktake');
   await expect(page.getByText('Admin access required', { exact: true })).toBeVisible();
 });
+
+test('Admin lifecycle attention shows coverage and role-changed custody with no automatic changes', async ({
+  page,
+  context,
+}) => {
+  const person = randomUUID(),
+    name = 'Recovery planning ' + randomUUID().slice(0, 8);
+  await pool.query("INSERT INTO users(id,email,display_name,state)VALUES($1,$2,$3,'DISABLED')", [
+    person,
+    `recovery-${person}@example.org`,
+    name,
+  ]);
+  const [a] = (
+    await pool.query(
+      `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,created_by,warranty_expiry,amc_applies)VALUES('IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),'IT Hardware','Laptop','Dell Latitude coverage','Owned','Assigned','Good','Low',$1,(now() AT TIME ZONE 'Asia/Kolkata')::date+10,false)RETURNING id`,
+      [admin.id],
+    )
+  ).rows;
+  await pool.query('INSERT INTO assignments(asset_id,user_id,assigned_by)VALUES($1,$2,$3)', [
+    a.id,
+    person,
+    admin.id,
+  ]);
+  await signIn(context, admin);
+  await page.goto('/admin/lifecycle');
+  await expect(page.getByRole('heading', { name: 'Warranty and AMC attention' })).toBeVisible();
+  await page.getByLabel('Find a person for recovery').fill(name);
+  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  await expect(page.getByText('1 outstanding items · 0 disputed')).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: '/downloads/iac-lifecycle-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '/downloads/iac-lifecycle-mobile.png' });
+  await page.getByRole('link', { name: "Review this person's equipment" }).click();
+  await expect(page).toHaveURL(new RegExp(`/equipment/people/${person}$`));
+  await expect(
+    page.getByRole('heading', { name: name + "'s equipment", exact: true }),
+  ).toBeVisible();
+  expect(
+    (await pool.query('SELECT status,version FROM assets WHERE id=$1', [a.id])).rows[0],
+  ).toEqual({ status: 'Assigned', version: 1 });
+});

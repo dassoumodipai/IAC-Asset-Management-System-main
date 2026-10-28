@@ -228,3 +228,7 @@ Executive summary includes `activity`, 12 zero-filled Monday-start Kolkata weeks
 ## Stocktake
 
 Admin only: `GET/POST /stocktake`, `GET /stocktake/:id` (after asset-code cursor, limit), `POST /stocktake/:id/observations` (assetCode, outcome SEEN/NOT_FOUND/MISMATCH, note, UUID requestKey), `POST /stocktake/:id/close` (reason), `GET /stocktake/:id/assets/:asset/history` (after observation-ID cursor, limit). Mutations require CSRF, observations/close require run If-Match. Create freezes a snapshot and optionally accepts departmentId/locationId. No inventory/custody/Finance mutations follow from observations. See `STOCKTAKE.md`.
+
+## Lifecycle attention
+
+Admin-only `GET /lifecycle/expiry` supports window DUE30/DUE90/EXPIRED/MISSING, after asset-code cursor and limit. `GET /lifecycle/recovery` supports name/email q, after user-ID cursor and limit. Both are read-only, live and scoped. No automatic renewal/reminder/return or account/HR mutation. See `LIFECYCLE_ATTENTION.md`.

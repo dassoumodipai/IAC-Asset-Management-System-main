@@ -42,3 +42,5 @@ Support triage now exposes category/search and team ownership views (Any/Mine/Un
 Latest source verification and measurements are recorded at each handoff. Earlier counts above are historical checkpoints, not the final test inventory. PR remains held until the user asks. No production deployment, external mail, private real inventory or upstream merge was performed.
 
 Physical stocktake now supports Admin frozen expected snapshots, immutable per-item Seen/Not found/Mismatch observations, explicit unobserved/extra counts, correction history and close without mutating inventory or Finance. It is an evidence slice, not automatic reconciliation/dual-control signoff. See `STOCKTAKE.md`.
+
+Admin lifecycle attention now shows recorded warranty/AMC due/expired/missing dates and outstanding custody for recovery planning, including disabled/role-changed accounts. This is read-only preparation, not automatic reminders or a full offboarding signoff workflow. See `LIFECYCLE_ATTENTION.md`.

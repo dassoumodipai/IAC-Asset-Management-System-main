@@ -1,3 +1,4 @@
+import { LifecycleController, LifecycleService } from './lifecycle';
 import { StocktakeController, StocktakeService } from './stocktake';
 import 'reflect-metadata';
 import { InvoiceEvidenceController, InvoiceEvidenceService } from './invoice-evidence';
@@ -18,6 +19,7 @@ import { PushController, PushService } from './push';
 import { NotificationsController, NotificationsService } from './notifications';
 @Module({
   controllers: [
+    LifecycleController,
     StocktakeController,
     InvoiceEvidenceController,
     DeliveryHealthController,
@@ -34,6 +36,7 @@ import { NotificationsController, NotificationsService } from './notifications';
     NotificationsController,
   ],
   providers: [
+    LifecycleService,
     StocktakeService,
     InvoiceEvidenceService,
     DeliveryHealthService,

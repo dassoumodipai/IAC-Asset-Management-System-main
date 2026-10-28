@@ -334,6 +334,15 @@ describe(
         201,
       );
     });
+    it('lifecycle HTTP denies non-Admin roles and accepts validated coverage windows', async () => {
+      for (const u of [employee, itAdmin, reviewer, executive]) {
+        assert.equal((await call(u, '/lifecycle/expiry')).status, 403);
+        assert.equal((await call(u, '/lifecycle/recovery')).status, 403);
+      }
+      assert.equal((await call(undefined, '/lifecycle/expiry')).status, 401);
+      assert.equal((await call(admin, '/lifecycle/expiry?window=invalid')).status, 422);
+      assert.equal((await call(admin, '/lifecycle/expiry?window=MISSING')).status, 200);
+    });
     it('invoice HTTP enforces session, CSRF, role, version and private binary retrieval', async () => {
       const Excel = (await import('exceljs')).default,
         wb = new Excel.Workbook();
