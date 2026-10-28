@@ -58,8 +58,13 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
   if (['FINANCE_SUBMITTED', 'FINANCE_APPROVED', 'FINANCE_RETURNED'].includes(outbox.template)) {
     const role = outbox.template === 'FINANCE_SUBMITTED' ? 'FINANCE' : 'ADMIN';
     const [eligible] = await db.query(
-      `SELECT 1 FROM users u JOIN user_roles r ON r.user_id=u.id WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND r.role_code=$2`,
-      [delivery.recipient, role],
+      `SELECT 1 FROM workflow_notifications n JOIN users u ON u.id=n.user_id JOIN user_roles r ON r.user_id=u.id WHERE n.event_key=$3 AND n.kind=$4 AND u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND r.role_code=$2`,
+      [
+        delivery.recipient,
+        role,
+        outbox.event_key,
+        outbox.template === 'FINANCE_SUBMITTED' ? 'FINANCE_REVIEW' : 'FINANCE_RESULT',
+      ],
     );
     if (!eligible) {
       await db.tx(async (c) => {

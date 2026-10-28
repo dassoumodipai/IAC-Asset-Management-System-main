@@ -149,10 +149,22 @@ test('Finance mail checks current role at dispatch and never sends to revoked re
   async function queued() {
     const key = `finance-worker:${randomUUID()}`;
     await db.tx((c) =>
-      db.notify(c, key, 'FINANCE_SUBMITTED', [email], {
-        subject: 'Synthetic Finance review',
-        text: 'Local fake SMTP only',
-      }),
+      db.notify(
+        c,
+        key,
+        'FINANCE_SUBMITTED',
+        [email],
+        {
+          subject: 'Synthetic Finance review',
+          text: 'Local fake SMTP only',
+        },
+        {
+          kind: 'FINANCE_REVIEW',
+          entityId: randomUUID(),
+          title: 'Synthetic',
+          message: 'Local only',
+        },
+      ),
     );
     const [row] = await db.query(
       'SELECT d.id FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
@@ -183,6 +195,29 @@ test('Finance mail checks current role at dispatch and never sends to revoked re
   );
   assert.ok(await checkSmtpAvailable(), 'Finance acceptance requires local fake mail sink');
   await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'FINANCE')", [id]);
+  const reused = await queued();
+  await db.query('UPDATE users SET email=$2 WHERE id=$1', [id, `changed-${id}@example.org`]);
+  const replacement = randomUUID();
+  await db.query(
+    "INSERT INTO users(id,email,display_name,state,email_verified_at)VALUES($1,$2,'Replacement Finance identity','ACTIVE',now())",
+    [replacement, email],
+  );
+  await db.query("INSERT INTO user_roles(user_id,role_code)VALUES($1,'FINANCE')", [replacement]);
+  await dispatchOnce(db);
+  assert.equal(
+    (await db.query('SELECT state FROM email_deliveries WHERE id=$1', [reused]))[0].state,
+    'DEAD',
+  );
+  assert.equal(
+    (await db.query('SELECT count(*)::int n FROM email_attempts WHERE delivery_id=$1', [reused]))[0]
+      .n,
+    0,
+  );
+  await db.query('UPDATE users SET email=$2 WHERE id=$1', [
+    replacement,
+    `replacement-${replacement}@example.org`,
+  ]);
+  await db.query('UPDATE users SET email=$2 WHERE id=$1', [id, email]);
   const valid = await queued();
   await dispatchOnce(db);
   assert.equal(

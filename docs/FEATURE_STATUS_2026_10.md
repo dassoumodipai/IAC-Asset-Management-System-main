@@ -1,6 +1,6 @@
 # What is connected now, and what remains
 
-Checkpoint 29 October 2026, 00:43 IST. Local tested source is ahead of the partially published fork branch. No production deployment is implied.
+Checkpoint 29 October 2026, 01:02 IST. Local tested source is ahead of the partially published fork branch. No production deployment is implied.
 
 | Capability | Current implementation | What can be configured now | Missing or later |
 |---|---|---|---|
@@ -14,7 +14,7 @@ Checkpoint 29 October 2026, 00:43 IST. Local tested source is ahead of the parti
 | Notifications | Encrypted SMTP outbox/retry worker plus persistent scoped workflow inbox and announcements/push; read state and precise paging | SMTP environment settings, announcement audience/content/attachments and existing notification recipients | Editable/versioned operational email template designer, provider bounce/complaint events and alerts |
 | Delivery health | New Admin-only real DB status/filter/attempt history | Filter/state/page presentation | Safe governed resend workflow, automated escalation, confirmed inbox delivery |
 | Security/access | Existing sessions, portal acceptance and MFA, expanded to Finance/Executive; Finance evidence append-only | Existing roles/reference settings; role changes require reasons | Tenant isolation, SSO/SCIM, custom role/field permission builder, penetration testing |
-| Scale | Repeatable rollback-only 50k-asset query probe plus short20concurrent-reader HTTP probe with payload/role checks | Local test dataset and query measurement | Sustained mixed read/write load, realistic history/photo/import volume, production capacity and production restore proof |
+| Scale | Repeatable rollback-only 50k-asset query probe, short20concurrent-reader HTTP probe and bounded mixed Finance/XLSX/stocktake slice with restricted runtime role | Local test dataset and query measurement | Sustained mixed read/write load, realistic history/photo/import volume, production capacity and production restore proof |
 | SaaS operations | No multi-tenant SaaS claim | Local/single-organization deployment settings | Tenant onboarding/isolation, subscriptions/billing, custom domains, availability/recovery commitments |
 
 ## Real, simulated and unavailable connections
@@ -44,3 +44,9 @@ Latest source verification and measurements are recorded at each handoff. Earlie
 Physical stocktake now supports Admin frozen expected snapshots, immutable per-item Seen/Not found/Mismatch observations, explicit unobserved/extra counts, correction history and close without mutating inventory or Finance. It is an evidence slice, not automatic reconciliation/dual-control signoff. See `STOCKTAKE.md`.
 
 Admin lifecycle attention now shows recorded warranty/AMC due/expired/missing dates and outstanding custody for recovery planning, including disabled/role-changed accounts. This is read-only preparation, not automatic reminders or a full offboarding signoff workflow. See `LIFECYCLE_ATTENTION.md`.
+
+## 01:02 engineering checkpoint
+
+123 isolated PostgreSQL14/local Mailpit integration cases and lint/types pass, with 32 API units and 62 web units passing at the immediately preceding runtime checkpoint. Latest browser splits passed 14 Finance/QR/trends/stocktake/lifecycle cases, 22 other workflow cases and four visual-audit cases covering 70 settled role/viewport visits; backend-only concurrency/dispatch changes were made afterward. A combined browser invocation timed out, so it is not counted as a completed full run.
+
+The short mixed local50k run completed 279 concurrent summary reads and 38 mutations in6.85sec with zero failures; writep95 was3.01sec. The initial attempt exposed a serialization failure and snapshot creation now rolls back/retries safely with a bounded conflict on exhaustion. This is not a capacity or latency commitment. Argon2, Sharp, XLSX and text-PDF extraction also pass a clean production-only Node24 install smoke. Docker/Pg17 and Windows remain unverified release paths. Ticket and Finance emails now fail closed when their original account no longer matches the current recipient identity/access.
