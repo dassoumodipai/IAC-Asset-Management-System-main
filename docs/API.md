@@ -232,3 +232,9 @@ Admin only: `GET/POST /stocktake`, `GET /stocktake/:id` (after asset-code cursor
 ## Lifecycle attention
 
 Admin-only `GET /lifecycle/expiry` supports window DUE30/DUE90/EXPIRED/MISSING, after asset-code cursor and limit. `GET /lifecycle/recovery` supports name/email q, after user-ID cursor and limit. Both are read-only, live and scoped. No automatic renewal/reminder/return or account/HR mutation. See `LIFECYCLE_ATTENTION.md`.
+
+## Finance-owned financial entry (29 October update)
+
+Admin `POST /assets` and `PATCH /assets/:id` reject purchaseCost, purchaseDate, currency, invoiceNumber, supplier, residualValue, depreciationMethod, usefulLifeYears, insurancePolicyNumber and insuranceExpiry, including first creation. IT_ADMIN alone cannot create inventory. Admin explicitly submits the current asset version to Finance; save does not automatically submit. A separate FINANCE reviewer enters and approves the financial section. Existing required approval values remain cost, purchase date, invoice number, supplier and reason. Residual value, configured depreciation method, useful life and insurance fields are optional and nullable. Currency remains INR. No depreciation calculation is added. Return does not change financial values. Full approved financial metadata is retained in immutable Finance event details; approved acquisition-cost snapshots and stale/self-approval protections are unchanged.
+
+Operational asset-transfer templates exclude these financial columns. Original register staging still preserves and reconciles source values, but promotion retains financial values only as restricted source evidence, not live asset financial data. Finance enters/checks those values after explicit submission.

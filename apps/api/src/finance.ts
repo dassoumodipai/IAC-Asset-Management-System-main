@@ -17,23 +17,21 @@ import { z } from 'zod';
 import { Db } from './db';
 import { configuration } from './config';
 import { AuthRequest, SessionGuard, requireRole, assertVersion } from './security';
-import { assetPatch, camel, validateAsset } from './domain-helpers';
+import {
+  assetPatch,
+  camel,
+  validateAsset,
+  financialShape,
+  financialKeys,
+  patchObject,
+} from './domain-helpers';
 
 const reasonInput = z.object({ reason: z.string().trim().min(3).max(2000) }).strict();
 const reviewInput = z
   .object({
     decision: z.enum(['APPROVE', 'RETURN']),
     reason: z.string().trim().min(3).max(2000),
-    purchaseCost: z
-      .string()
-      .regex(/^\d{1,12}(\.\d{1,2})?$/)
-      .optional(),
-    purchaseDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-    invoiceNumber: z.string().trim().min(1).max(500).optional(),
-    supplier: z.string().trim().min(1).max(500).optional(),
+    ...financialShape,
     invoiceEvidenceId: z.string().uuid().optional(),
   })
   .strict()
@@ -42,10 +40,7 @@ const reviewInput = z
       for (const key of ['purchaseCost', 'purchaseDate', 'invoiceNumber', 'supplier'] as const)
         if (!v[key])
           ctx.addIssue({ code: 'custom', path: [key], message: 'Required for Finance approval' });
-    if (
-      v.decision === 'RETURN' &&
-      [v.purchaseCost, v.purchaseDate, v.invoiceNumber, v.supplier].some((v) => v !== undefined)
-    )
+    if (v.decision === 'RETURN' && financialKeys.some((key) => v[key] !== undefined))
       ctx.addIssue({ code: 'custom', message: 'Return requests must not change financial fields' });
   });
 const queueInput = z
@@ -70,7 +65,10 @@ export class FinanceService {
         (SELECT code FROM reference_values WHERE kind='ASSET_TYPE' UNION SELECT DISTINCT asset_type AS code FROM assets WHERE asset_type IS NOT NULL) t
         LEFT JOIN reference_values r ON r.kind='ASSET_TYPE' AND r.code=t.code ORDER BY coalesce(r.label,t.code),t.code`),
     ]);
-    return { departments, values };
+    const methods = await this.db.query(
+      "SELECT kind,code,label,active FROM reference_values WHERE kind='DEPRECIATION_METHOD' ORDER BY label,code",
+    );
+    return { departments, values: [...values, ...methods] };
   }
   async queue(req: AuthRequest, query: unknown) {
     requireRole(req, 'ADMIN', 'FINANCE');
@@ -120,7 +118,7 @@ export class FinanceService {
     // lock through history so the returned state/version and evidence cannot tear.
     return this.db.tx(async (c) => {
       const [row] = await this.db.query(
-        `SELECT a.id,a.asset_code,a.description,a.asset_type,a.version AS asset_version,a.purchase_cost,a.purchase_date,a.invoice_number,a.supplier,a.currency,a.finance_pending,
+        `SELECT a.id,a.asset_code,a.description,a.asset_type,a.version AS asset_version,a.purchase_cost,a.purchase_date,a.invoice_number,a.supplier,a.currency,a.residual_value,a.depreciation_method,a.useful_life_years,a.insurance_policy_number,a.insurance_expiry,a.finance_pending,
       f.state,f.version AS finance_version,f.asset_version AS submitted_asset_version,f.submitted_by,f.submitted_at,f.submission_reason,f.reviewed_at,f.review_reason,f.approved_cost,f.approved_at,
       s.display_name AS submitted_by_name,r.display_name AS reviewed_by_name
       FROM assets a LEFT JOIN asset_finance f ON f.asset_id=a.id LEFT JOIN users s ON s.id=f.submitted_by LEFT JOIN users r ON r.id=f.reviewed_by WHERE a.id=$1 FOR SHARE OF a`,
@@ -268,20 +266,16 @@ export class FinanceService {
       const action = data.decision === 'APPROVE' ? 'APPROVED' : 'RETURNED';
       let details: any = { assetVersion: asset.version };
       if (data.decision === 'APPROVE') {
-        const changes = assetPatch.parse({
+        const financial = Object.fromEntries(
+          financialKeys.filter((key) => data[key] !== undefined).map((key) => [key, data[key]]),
+        );
+        const { reason: _reason, ...changes } = assetPatch.parse({
           reason: data.reason,
-          purchaseCost: data.purchaseCost,
-          purchaseDate: data.purchaseDate,
-          invoiceNumber: data.invoiceNumber,
-          supplier: data.supplier,
+          ...financial,
         });
         const merged = { ...camel(asset), ...changes };
         await validateAsset(this.db, merged, c, camel(asset));
-        await this.db.query(
-          `UPDATE assets SET purchase_cost=$2,purchase_date=$3,invoice_number=$4,supplier=$5,finance_pending=false,version=version+1,updated_at=now() WHERE id=$1`,
-          [id, data.purchaseCost, data.purchaseDate, data.invoiceNumber, data.supplier],
-          c,
-        );
+        await patchObject(this.db, 'assets', id, { ...changes, financePending: false }, c);
         await this.db.query(
           `UPDATE asset_finance SET approved_cost=$2,approved_purchase_date=$3,approved_invoice_number=$4,approved_supplier=$5,approved_at=now(),approved_by=$6,asset_version=$7 WHERE asset_id=$1`,
           [
@@ -302,6 +296,7 @@ export class FinanceService {
           invoiceNumber: data.invoiceNumber,
           supplier: data.supplier,
           currency: 'INR',
+          ...Object.fromEntries(financialKeys.map((key) => [key, merged[key] ?? null])),
           priorApprovedCost: current.approved_cost,
           ...(invoiceEvidence ? { invoiceEvidence } : {}),
         };

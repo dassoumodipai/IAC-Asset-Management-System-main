@@ -83,6 +83,29 @@ export const assetInput = z
     commentType: optionalText(),
   })
   .strict();
+// Financial values are owned by Finance, never the catalog registrar endpoint.
+export const financialKeys = [
+  'purchaseCost',
+  'purchaseDate',
+  'currency',
+  'invoiceNumber',
+  'supplier',
+  'residualValue',
+  'depreciationMethod',
+  'usefulLifeYears',
+  'insurancePolicyNumber',
+  'insuranceExpiry',
+] as const;
+export const financialShape = Object.fromEntries(
+  financialKeys.map((key) => [key, assetInput.shape[key]]),
+) as Pick<typeof assetInput.shape, (typeof financialKeys)[number]>;
+export const registrarInput = assetInput.omit(
+  Object.fromEntries(financialKeys.map((key) => [key, true])) as Record<
+    (typeof financialKeys)[number],
+    true
+  >,
+);
+export const registrarPatch = registrarInput.partial().extend({ reason: text() }).strict();
 export const assetPatch = assetInput.partial().extend({ reason: text() }).strict();
 export const ticketInput = z
   .object({

@@ -67,6 +67,38 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await pool.end();
 });
+test('Admin asset form has no financial entry controls, even before Finance submission', async ({
+  page,
+  context,
+}) => {
+  await signIn(context, admin);
+  await page.goto('/assets/new');
+  await expect(
+    page.getByRole('heading', { name: 'Finance-owned details', exact: true }),
+  ).toBeVisible();
+  for (const label of [
+    'Purchase cost (INR)',
+    'Purchase date',
+    'Invoice number',
+    'Supplier',
+    'Residual value (INR)',
+    'Depreciation method',
+    'Insurance policy number',
+    'Insurance expiry',
+  ]) {
+    await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
+  }
+  await page
+    .getByRole('heading', { name: 'Finance-owned details', exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '/downloads/iac-finance-split-admin-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole('heading', { name: 'Finance-owned details', exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '/downloads/iac-finance-split-admin-mobile.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 test('registrar submits, Finance returns and approves amendment, executive reads without edit powers', async ({
   page,
   context,
@@ -115,6 +147,10 @@ test('registrar submits, Finance returns and approves amendment, executive reads
   await page.getByLabel('Purchase date', { exact: true }).fill('2026-01-15');
   await page.getByLabel('Invoice number').fill('DEMO-INV-2026-01');
   await page.getByLabel('Supplier', { exact: true }).fill('Synthetic Equipment Supplier');
+  await page.getByLabel('Residual value (INR)', { exact: true }).fill('5000');
+  await page.getByLabel('Useful life (years)', { exact: true }).fill('5');
+  await page.getByLabel('Insurance policy number', { exact: true }).fill('SYNTHETIC-POL-42');
+  await page.getByLabel('Insurance expiry', { exact: true }).fill('2027-01-15');
   await page
     .getByLabel('Review reason')
     .fill('Invoice total and asset identity independently verified');
@@ -123,6 +159,17 @@ test('registrar submits, Finance returns and approves amendment, executive reads
   await expect(page.getByText('APPROVED', { exact: true }).first()).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: '/downloads/iac-finance-approved-desktop.png', fullPage: true });
+  const financial = (
+    await pool.query(
+      'SELECT residual_value,useful_life_years,insurance_policy_number FROM assets WHERE id=$1',
+      [assetId],
+    )
+  ).rows[0];
+  expect(financial).toEqual({
+    residual_value: '5000.00',
+    useful_life_years: 5,
+    insurance_policy_number: 'SYNTHETIC-POL-42',
+  });
   const [row] = (
     await pool.query('SELECT state,approved_cost FROM asset_finance WHERE asset_id=$1', [assetId])
   ).rows;
@@ -490,16 +537,12 @@ test('Admin can edit non-financial metadata after Finance approval without resen
     purchase_cost: '65000.00',
   });
   await page.goto(`/assets/${id}/edit`);
-  await page.getByLabel('Purchase cost (INR)', { exact: true }).fill('66000.00');
-  await page
-    .getByLabel('Reason for this change', { exact: true })
-    .fill('Attempt to bypass Finance review');
-  const protectedResponse = page.waitForResponse(
-    (r) => r.url().endsWith('/assets/' + id) && r.request().method() === 'PATCH',
-  );
-  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
-  expect((await protectedResponse).status()).toBe(409);
-  await expect(page.getByRole('alert')).toContainText('Finance submission');
+  await expect(page.getByLabel('Purchase cost (INR)', { exact: true })).toHaveCount(0);
+  const protectedResponse = await page.request.patch('/api/v1/assets/' + id, {
+    headers: { Origin: origin, 'X-CSRF-Token': admin.csrf, 'If-Match': '"2"' },
+    data: { purchaseCost: '66000.00', reason: 'Attempt to bypass Finance review' },
+  });
+  expect(protectedResponse.status()).toBe(422);
   expect(
     (await pool.query('SELECT purchase_cost FROM assets WHERE id=$1', [id])).rows[0].purchase_cost,
   ).toBe('65000.00');

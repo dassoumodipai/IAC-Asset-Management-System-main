@@ -124,6 +124,70 @@ describe(
     after(async () => {
       await app?.close();
     });
+    it('rejects all financial catalog writes even before submission, and Finance owns full metadata', async () => {
+      const target = await domain.createAsset(req(admin), {
+        category: asset.category,
+        assetType: asset.assetType,
+        description: 'Financial ownership test',
+        ownershipType: asset.ownershipType,
+        status: 'In Store',
+        condition: asset.condition,
+        riskLevel: asset.riskLevel,
+      });
+      const financial = {
+        purchaseCost: '999.00',
+        purchaseDate: '2026-01-01',
+        currency: 'INR',
+        invoiceNumber: 'INV',
+        supplier: 'Supplier',
+        residualValue: '0',
+        depreciationMethod: 'method',
+        usefulLifeYears: 3,
+        insurancePolicyNumber: 'POL',
+        insuranceExpiry: '2027-01-01',
+      };
+      for (const [key, value] of Object.entries(financial)) {
+        await assert.rejects(() =>
+          domain.createAsset(req(admin), {
+            category: asset.category,
+            assetType: asset.assetType,
+            description: 'Bypass attempt',
+            ownershipType: asset.ownershipType,
+            status: 'In Store',
+            condition: asset.condition,
+            riskLevel: asset.riskLevel,
+            [key]: value,
+          }),
+        );
+        await assert.rejects(() =>
+          domain.editAsset(req(admin, target.version), target.id, {
+            reason: 'Bypass attempt',
+            [key]: value,
+          }),
+        );
+      }
+      await finance.submit(req(admin, target.version), target.id, {
+        reason: 'Finance entry requested',
+      });
+      let detail = await finance.detail(req(reviewer), target.id);
+      await assert.rejects(() =>
+        finance.review(req(admin, detail.financeVersion), target.id, approval),
+      );
+      await finance.review(req(reviewer, detail.financeVersion), target.id, {
+        ...approval,
+        residualValue: '1500.00',
+        usefulLifeYears: 5,
+        insurancePolicyNumber: 'POL-FINANCE',
+        insuranceExpiry: '2027-01-05',
+      });
+      detail = await finance.detail(req(admin), target.id);
+      assert.equal(detail.residualValue, '1500.00');
+      assert.equal(detail.usefulLifeYears, 5);
+      assert.equal(detail.insurancePolicyNumber, 'POL-FINANCE');
+      assert.equal(detail.financePending, false);
+      assert.equal(detail.approvedCost, approval.purchaseCost);
+      assert.equal(detail.history[0].details.insurancePolicyNumber, 'POL-FINANCE');
+    });
     it('queues version-keyed Finance messages atomically with scoped recipients and minimal encrypted content', async () => {
       const a = await domain.createAsset(req(admin), {
         category: asset.category,
@@ -436,7 +500,7 @@ describe(
           purchaseCost: '999',
           reason: 'Must not bypass review',
         }),
-        /Finance submission/,
+        /Invalid fields/,
       );
       let r = await call(
         reviewer,

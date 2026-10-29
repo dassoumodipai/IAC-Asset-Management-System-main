@@ -22,6 +22,11 @@ interface FinanceAsset {
   purchaseDate: string | null;
   invoiceNumber: string | null;
   supplier: string | null;
+  residualValue: string | null;
+  depreciationMethod: string | null;
+  usefulLifeYears: number | null;
+  insurancePolicyNumber: string | null;
+  insuranceExpiry: string | null;
   submittedAt: string | null;
   submittedBy: string | null;
   submittedByName: string | null;
@@ -91,7 +96,7 @@ export function FinanceQueue() {
     <>
       <PageTitle
         title="Finance review"
-        description="Registrars submit asset records. A separate Finance reviewer approves the cost and invoice details."
+        description="Registrars submit asset records. A separate Finance reviewer enters and approves financial details."
         action={
           <Link className="button secondary" to="/executive">
             Executive overview
@@ -245,6 +250,18 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
     action = useAction(),
     client = useQueryClient();
   const [invoiceEvidenceId, setInvoiceEvidenceId] = useState<string>();
+  const [metadata, setMetadata] = useState<Record<string, string>>({
+    residualValue: a.residualValue ?? '',
+    depreciationMethod: a.depreciationMethod ?? '',
+    usefulLifeYears: a.usefulLifeYears == null ? '' : String(a.usefulLifeYears),
+    insurancePolicyNumber: a.insurancePolicyNumber ?? '',
+    insuranceExpiry: a.insuranceExpiry?.slice(0, 10) ?? '',
+  });
+  const refs = useQuery({
+    queryKey: ['finance-references'],
+    queryFn: ({ signal }) => api<References>('/finance/filter-options', { signal }),
+  });
+
   const [cost, setCost] = useState(a.purchaseCost ?? ''),
     [purchaseDate, setPurchaseDate] = useState(a.purchaseDate?.slice(0, 10) ?? ''),
     [invoice, setInvoice] = useState(a.invoiceNumber ?? ''),
@@ -291,6 +308,16 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
           reason,
           ...(decision === 'APPROVE'
             ? {
+                ...Object.fromEntries(
+                  Object.entries(metadata).map(([key, value]) => [
+                    key,
+                    value.trim()
+                      ? key === 'usefulLifeYears'
+                        ? Number(value)
+                        : value.trim()
+                      : null,
+                  ]),
+                ),
                 purchaseCost: cost,
                 purchaseDate,
                 invoiceNumber: invoice,
@@ -380,6 +407,24 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
               <dd>{date(a.approvedAt)}</dd>
             </div>
           </dl>
+          <dl className="finance-facts">
+            {[
+              ['Purchase cost', money(a.purchaseCost)],
+              ['Purchase date', a.purchaseDate?.slice(0, 10)],
+              ['Invoice number', a.invoiceNumber],
+              ['Supplier', a.supplier],
+              ['Residual value', money(a.residualValue)],
+              ['Depreciation method', a.depreciationMethod],
+              ['Useful life (years)', a.usefulLifeYears],
+              ['Insurance policy number', a.insurancePolicyNumber],
+              ['Insurance expiry', a.insuranceExpiry?.slice(0, 10)],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value ?? 'Not set'}</dd>
+              </div>
+            ))}
+          </dl>
           <p className="muted">
             A pending amendment keeps the last approved cost in executive totals until Finance
             approves the replacement.
@@ -437,6 +482,49 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
                       maxLength={160}
                     />
                   </Field>
+                  {[
+                    ['residualValue', 'Residual value (INR)', 'text'],
+                    ['usefulLifeYears', 'Useful life (years)', 'number'],
+                    ['insurancePolicyNumber', 'Insurance policy number', 'text'],
+                    ['insuranceExpiry', 'Insurance expiry', 'date'],
+                  ].map(([key, label, type]) => (
+                    <Field key={key} label={label} htmlFor={key}>
+                      <input
+                        id={key}
+                        type={type}
+                        min={key === 'usefulLifeYears' ? 1 : undefined}
+                        max={key === 'usefulLifeYears' ? 100 : undefined}
+                        value={metadata[key]}
+                        onChange={(e) => setMetadata((v) => ({ ...v, [key]: e.target.value }))}
+                      />
+                    </Field>
+                  ))}
+                  <Field label="Depreciation method" htmlFor="depreciationMethod">
+                    <select
+                      id="depreciationMethod"
+                      value={metadata.depreciationMethod}
+                      onChange={(e) =>
+                        setMetadata((v) => ({ ...v, depreciationMethod: e.target.value }))
+                      }
+                    >
+                      <option value="">Not set</option>
+                      {refs.data?.values
+                        .filter(
+                          (v) =>
+                            v.kind === 'DEPRECIATION_METHOD' &&
+                            (v.active || v.code === metadata.depreciationMethod),
+                        )
+                        .map((v) => (
+                          <option key={v.code} value={v.code}>
+                            {v.label}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                  <p className="muted">
+                    Optional financial metadata may be left blank. Depreciation is not calculated.
+                    All approved values are recorded in the Finance history.
+                  </p>
                 </>
               ) : null}
               {invoiceEvidenceId ? (
@@ -466,9 +554,9 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
           ) : hasRole(user, 'ADMIN') ? (
             <form className="form-stack" onSubmit={(e) => void submit(e)}>
               <p>
-                Entered cost: <strong>{money(a.purchaseCost)}</strong>. Submit the current catalog
-                version for independent Finance review. Approved records may be submitted again for
-                an amendment.
+                Finance enters financial values after submission. Submit the current asset version
+                for independent Finance review. Approved records may be submitted again for an
+                amendment.
               </p>
               <Field label="Submission reason" htmlFor="submission-reason">
                 <textarea

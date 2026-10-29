@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { randomBytes } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, copyFile, readFile, rm, stat, unlink } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
@@ -57,10 +58,19 @@ test(
         assert.notEqual(run(input).status, 0);
         await assert.rejects(stat(file));
       }
-      const result = run('assets.example.org\nsender@example.org\naaaa bbbb cccc dddd\n');
+      const sample = randomBytes(8).toString('hex');
+      const result = run(
+        `assets.example.org\nsender@example.org\n${sample.match(/.{4}/g).join(' ')}\n`,
+      );
       assert.equal(result.status, 0);
       const content = await readFile(file, 'utf8');
-      assert.match(content, /SMTP_PASSWORD=aaaabbbbccccdddd/);
+      assert.equal(
+        content
+          .split('\n')
+          .find((line) => line.startsWith('SMTP_PASSWORD='))
+          .split('=')[1],
+        sample,
+      );
       assert.equal((await stat(file)).mode & 0o777, 0o600);
       for (const line of content
         .split('\n')

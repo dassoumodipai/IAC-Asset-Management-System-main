@@ -777,9 +777,7 @@ const textFields = [
   ['barcode', 'Barcode / QR value'],
 ] as const;
 const dateFields = [
-  ['purchaseDate', 'Purchase date'],
   ['warrantyExpiry', 'Warranty expiry'],
-  ['insuranceExpiry', 'Insurance expiry'],
   ['lastAuditDate', 'Last audit date'],
   ['nextAuditDate', 'Next audit date'],
   ['disposalDate', 'Disposal date'],
@@ -798,13 +796,7 @@ const assetEditableFields = [
   'configuration',
   'graphics',
   'amcExpiry',
-  'purchaseCost',
-  'residualValue',
-  'invoiceNumber',
-  'supplier',
-  'insurancePolicyNumber',
   'disposalMethod',
-  'depreciationMethod',
   'commentType',
   'dataWipeRequired',
   'disposalReference',
@@ -877,9 +869,9 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       departmentId: refs.data?.departments.find((item) => item.active)?.id ?? '',
       locationId: refs.data?.locations.find((item) => item.active)?.id ?? '',
       configuration: 'Intel Core i7-1355U · 16 GB RAM · 512 GB NVMe SSD · Windows 11 Pro',
-      purchaseDate: '2024-04-15',
+
       warrantyExpiry: '2027-04-15',
-      insuranceExpiry: '2027-03-31',
+
       lastAuditDate: '2025-06-15',
       nextAuditDate: '2026-12-15',
       disposalDate: '2026-01-10',
@@ -887,12 +879,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       dataWipeRequired: firstCode('DATA_WIPE'),
       disposalReference: 'DEMO-DISPOSAL-REF-001',
       amcExpiry: '2027-04-15',
-      purchaseCost: '45999.00',
-      residualValue: '12000',
-      invoiceNumber: 'INV-DEMO-2024-0415',
-      supplier: 'Demo Technologies Pvt Ltd',
-      insurancePolicyNumber: 'POL-DEMO-88421',
-      depreciationMethod: firstCode('DEPRECIATION_METHOD'),
+
       commentType: firstCode('COMMENT_TYPE'),
       remarks: 'Sample record created with Fill demo values. Safe to edit or discard.',
     }));
@@ -926,18 +913,12 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       'riskLevel',
       'warrantyExpiry',
       'amcExpiry',
-      'purchaseDate',
-      'purchaseCost',
-      'residualValue',
-      'invoiceNumber',
-      'supplier',
-      'insurancePolicyNumber',
-      'insuranceExpiry',
+
       'lastAuditDate',
       'nextAuditDate',
       'disposalDate',
       'disposalMethod',
-      'depreciationMethod',
+
       'commentType',
       'dataWipeRequired',
       'disposalReference',
@@ -1224,46 +1205,12 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
             ) : null}
           </div>
         </Panel>
-        <Panel title="Financial metadata">
-          <p className="muted">
-            Leave unknown values blank. Depreciation is not calculated in this release.
+        <Panel title="Finance-owned details">
+          <p>
+            Finance enters purchase, invoice, depreciation and insurance details after the asset is
+            submitted for independent Finance review. Admin records only asset details here.
           </p>
-          <div className="form-grid">
-            <Field label="Depreciation method" htmlFor="depreciationMethod">
-              <ReferenceSelect
-                refs={refs.data}
-                kind="DEPRECIATION_METHOD"
-                id="depreciationMethod"
-                value={values.depreciationMethod ?? ''}
-                onChange={(value) => set('depreciationMethod', value)}
-                required={false}
-                preserveCurrent={!!baseline}
-              />
-            </Field>
-            {[
-              ['purchaseCost', 'Purchase cost (INR)'],
-              ['residualValue', 'Residual value (INR)'],
-              ['invoiceNumber', 'Invoice number'],
-              ['supplier', 'Supplier'],
-              ['insurancePolicyNumber', 'Insurance policy number'],
-            ].map(([name, label]) => (
-              <Field key={name} label={label} htmlFor={name}>
-                <input
-                  id={name}
-                  value={values[name] ?? ''}
-                  onChange={(event) => set(name, event.target.value)}
-                  inputMode={
-                    name === 'purchaseCost' || name === 'residualValue' ? 'decimal' : 'text'
-                  }
-                  pattern={
-                    name === 'purchaseCost' || name === 'residualValue'
-                      ? '[0-9]+([.][0-9]{1,2})?'
-                      : undefined
-                  }
-                />
-              </Field>
-            ))}
-          </div>
+          <p className="muted">Depreciation is not calculated in this release.</p>
         </Panel>
         <Panel title="Notes & accountability">
           <Field label="Comment type" htmlFor="commentType">

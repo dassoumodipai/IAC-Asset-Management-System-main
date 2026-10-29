@@ -94,9 +94,7 @@ Asset fields accepted by the bulk catalog module:
 ```text
 category, assetType, description, manufacturer, model, serialNumber, barcode,
 configuration, graphics, ownershipType, assetOwner, status, condition, riskLevel,
-warrantyExpiry, amcApplies, amcExpiry, purchaseDate, purchaseCost, currency,
-residualValue, depreciationMethod, usefulLifeYears, invoiceNumber, supplier,
-insurancePolicyNumber, insuranceExpiry, lastAuditDate, nextAuditDate, disposalDate,
+warrantyExpiry, amcApplies, amcExpiry, lastAuditDate, nextAuditDate, disposalDate,
 disposalMethod, disposalReference, dataWipeRequired, remarks, commentType
 ```
 
@@ -163,3 +161,7 @@ Loading reconciliation, review controls or correction tables clears Finance and 
 Apply migration 007 with `npm run db:migrate`; production operators must reapply [runtime-grants.sql](../infra/runtime-grants.sql). The restricted transfer table retains submitted provenance and the committed receipt. Include it in approved backup/retention procedures. No import/export action changes SMTP configuration.
 
 Generic bulk REST routes are `GET /api/v1/transfers/definitions`, `POST /api/v1/transfers/preview` and `POST /api/v1/transfers/:id/commit` with `{confirmed:true}` for Apply. Normal session, MFA, portal and CSRF checks remain in force. Register staging/review/commit continues to use `/api/v1/imports`; single-form imports continue to use the original business endpoint only after Save/Submit. See [API.md](API.md) for the full route contract.
+
+### Finance-owned fields
+
+Asset create/update transfer templates no longer accept financial fields. Admin creates operational records and submits them explicitly. Finance enters and approves financial metadata separately. Register staging retains financial source values for reconciliation, but promotion does not copy them to live purchase/invoice/depreciation/insurance fields. Source evidence remains restricted.
