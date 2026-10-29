@@ -41,6 +41,9 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     condition: 'Good',
     riskLevel: 'Medium',
     amcApplies: false,
+    purchaseCost: '100.00',
+    residualValue: '0.00',
+    supplier: 'Restricted supplier',
     remarks: 'Private inventory remark',
   };
   before(async () => {
@@ -94,11 +97,6 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
   it('creates immutable asset codes, enforces DTO allowlists and idempotency', async () => {
     const req = request(admin, undefined, `${tag}-create`);
     asset = await service.createAsset(req, input);
-    // Historic Finance-owned values are seeded directly, never through Admin catalog entry.
-    await db.query(
-      "UPDATE assets SET purchase_cost=100,residual_value=0,supplier='Restricted supplier' WHERE id=$1",
-      [asset.id],
-    );
     assert.match(asset.assetCode, /^IAC-IT-\d{6}$/);
     assert.equal(asset.financePending, true);
     const repeat = await service.createAsset(req, input);
@@ -477,8 +475,7 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     const [imported] = await db.query('SELECT * FROM assets WHERE asset_code=$1', [code]);
     assert.equal(imported.finance_pending, true);
     assert.equal(imported.legacy_metadata.old_custodian, 'Restricted historical source');
-    assert.equal(imported.purchase_cost, null);
-    assert.equal(imported.legacy_metadata.pendingFinancialSource.purchaseCost, '123.45');
+    assert.equal(imported.purchase_cost, '123.45');
     await assert.rejects(service.importBatch(request(employee), batch.id), status(403));
   });
   it('requires an exact declared 42-column layout, preserves raw fields and quarantines unresolved custody', async () => {

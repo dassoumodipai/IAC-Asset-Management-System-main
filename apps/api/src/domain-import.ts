@@ -6,7 +6,6 @@ import { configuration } from './config';
 import { AuthRequest, assertVersion, requireRole } from './security';
 import {
   assetInput,
-  financialKeys,
   camel,
   eligibleEmployee,
   found,
@@ -512,23 +511,13 @@ export class ImportDomain extends TicketDomain {
           this.db,
           'assets',
           {
-            ...Object.fromEntries(
-              Object.entries(normalized.data).filter(
-                ([key]) => !financialKeys.includes(key as (typeof financialKeys)[number]),
-              ),
-            ),
+            ...normalized.data,
             assetCode: normalized.assetCode,
             createdBy: req.user.id,
             importRowId: row.id,
             financePending: true,
             legacyMetadata: {
               rawSourceRowId: row.id,
-              // Retain source evidence without promoting registrar-entered financial values.
-              pendingFinancialSource: Object.fromEntries(
-                financialKeys
-                  .filter((key) => normalized.data[key] !== undefined)
-                  .map((key) => [key, normalized.data[key]]),
-              ),
               asOf: batch.exported_at,
               annual_depreciation_cache: row.raw_fields['Annual Depreciation'],
               accumulated_depreciation_cache: row.raw_fields['Accumulated Depreciation'],

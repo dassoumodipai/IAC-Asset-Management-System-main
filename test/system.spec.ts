@@ -164,6 +164,7 @@ test('employee custody and support workflow through real browser and API', async
     status: 'In Store',
     condition: 'Good',
     riskLevel: 'Medium',
+    purchaseCost: '1000.00',
   });
   expect(create.status(), await create.text()).toBe(201);
   const asset = await create.json();

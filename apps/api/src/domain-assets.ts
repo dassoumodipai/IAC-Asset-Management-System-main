@@ -5,8 +5,8 @@ import { Actor, AuthRequest, assertVersion, requireRole } from './security';
 import {
   admin,
   assetColumns,
-  registrarInput,
-  registrarPatch,
+  assetInput,
+  assetPatch,
   assetScope,
   assignInput,
   reassignInput,
@@ -118,7 +118,7 @@ export class AssetDomain extends MasterDomain {
   }
   async createAsset(req: AuthRequest, body: unknown) {
     requireRole(req, 'ADMIN');
-    const data = parse(registrarInput, body);
+    const data = parse(assetInput, body);
     if (data.status === 'Assigned')
       throw new ConflictException('Assign custody using the assignment workflow');
     return idempotent(this.db, req, 'POST /assets', data, async (c) => {
@@ -159,13 +159,32 @@ export class AssetDomain extends MasterDomain {
   async editAsset(req: AuthRequest, assetId: string, body: unknown) {
     requireRole(req, 'ADMIN');
     id(assetId);
-    const { reason, ...changes } = parse(registrarPatch, body);
+    const { reason, ...changes } = parse(assetPatch, body);
     if (!Object.keys(changes).length) throw new ConflictException('No catalog changes supplied');
     return this.db.tx(async (c) => {
       const before = found(
         (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],
       );
       assertVersion(req, before.version);
+      const financialFields = [
+        'purchaseCost',
+        'purchaseDate',
+        'currency',
+        'invoiceNumber',
+        'supplier',
+        'residualValue',
+        'depreciationMethod',
+        'usefulLifeYears',
+        'insurancePolicyNumber',
+        'insuranceExpiry',
+      ];
+      if (
+        financialFields.some((key) => key in changes) &&
+        (await this.db.query('SELECT 1 FROM asset_finance WHERE asset_id=$1', [assetId], c)).length
+      )
+        throw new ConflictException(
+          'Use the Finance submission and review workflow to change financial fields after submission',
+        );
       const merged = { ...camel(before), ...changes };
       await validateAsset(this.db, merged, c, camel(before));
       const [custody] = await this.db.query(

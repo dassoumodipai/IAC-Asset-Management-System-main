@@ -67,15 +67,12 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await pool.end();
 });
-test('Admin asset form has no financial entry controls, even before Finance submission', async ({
+test('Admin can enter initial financial drafts for independent Finance review', async ({
   page,
   context,
 }) => {
   await signIn(context, admin);
   await page.goto('/assets/new');
-  await expect(
-    page.getByRole('heading', { name: 'Finance-owned details', exact: true }),
-  ).toBeVisible();
   for (const label of [
     'Purchase cost (INR)',
     'Purchase date',
@@ -85,18 +82,20 @@ test('Admin asset form has no financial entry controls, even before Finance subm
     'Depreciation method',
     'Insurance policy number',
     'Insurance expiry',
-  ]) {
-    await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
-  }
+  ])
+    await expect(page.getByLabel(label, { exact: true })).toHaveCount(1);
+  await page.getByLabel('Purchase cost (INR)', { exact: true }).fill('65000');
+  await page.getByLabel('Invoice number', { exact: true }).fill('SYNTHETIC-DRAFT');
+  await page.getByLabel('Supplier', { exact: true }).fill('Example supplier');
   await page
-    .getByRole('heading', { name: 'Finance-owned details', exact: true })
+    .getByRole('heading', { name: 'Financial metadata', exact: true })
     .scrollIntoViewIfNeeded();
-  await page.screenshot({ path: '/downloads/iac-finance-split-admin-desktop.png' });
+  await page.screenshot({ path: '/downloads/iac-admin-financial-draft-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page
-    .getByRole('heading', { name: 'Finance-owned details', exact: true })
+    .getByRole('heading', { name: 'Financial metadata', exact: true })
     .scrollIntoViewIfNeeded();
-  await page.screenshot({ path: '/downloads/iac-finance-split-admin-mobile.png' });
+  await page.screenshot({ path: '/downloads/iac-admin-financial-draft-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 test('registrar submits, Finance returns and approves amendment, executive reads without edit powers', async ({
@@ -537,12 +536,12 @@ test('Admin can edit non-financial metadata after Finance approval without resen
     purchase_cost: '65000.00',
   });
   await page.goto(`/assets/${id}/edit`);
-  await expect(page.getByLabel('Purchase cost (INR)', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Purchase cost (INR)', { exact: true })).toHaveCount(1);
   const protectedResponse = await page.request.patch('/api/v1/assets/' + id, {
     headers: { Origin: origin, 'X-CSRF-Token': admin.csrf, 'If-Match': '"2"' },
     data: { purchaseCost: '66000.00', reason: 'Attempt to bypass Finance review' },
   });
-  expect(protectedResponse.status()).toBe(422);
+  expect(protectedResponse.status()).toBe(409);
   expect(
     (await pool.query('SELECT purchase_cost FROM assets WHERE id=$1', [id])).rows[0].purchase_cost,
   ).toBe('65000.00');

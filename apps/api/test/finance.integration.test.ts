@@ -124,52 +124,47 @@ describe(
     after(async () => {
       await app?.close();
     });
-    it('rejects all financial catalog writes even before submission, and Finance owns full metadata', async () => {
+    it('Admin records financial drafts, separate Finance reviews full metadata, later Admin bypasses fail', async () => {
       const target = await domain.createAsset(req(admin), {
         category: asset.category,
         assetType: asset.assetType,
-        description: 'Financial ownership test',
+        description: 'Financial review test',
         ownershipType: asset.ownershipType,
         status: 'In Store',
         condition: asset.condition,
         riskLevel: asset.riskLevel,
+        purchaseCost: '9000.00',
+        residualValue: '500.00',
+        insurancePolicyNumber: 'DRAFT-POL',
       });
-      const financial = {
-        purchaseCost: '999.00',
+      assert.equal(target.purchaseCost, '9000.00');
+      assert.equal(target.financePending, true);
+      let edited = await domain.editAsset(req(admin, target.version), target.id, {
+        reason: 'Draft invoice supplied',
+        invoiceNumber: 'DRAFT-INV',
+        supplier: 'Draft Supplier',
         purchaseDate: '2026-01-01',
-        currency: 'INR',
-        invoiceNumber: 'INV',
-        supplier: 'Supplier',
-        residualValue: '0',
-        depreciationMethod: 'method',
-        usefulLifeYears: 3,
-        insurancePolicyNumber: 'POL',
-        insuranceExpiry: '2027-01-01',
-      };
-      for (const [key, value] of Object.entries(financial)) {
-        await assert.rejects(() =>
-          domain.createAsset(req(admin), {
-            category: asset.category,
-            assetType: asset.assetType,
-            description: 'Bypass attempt',
-            ownershipType: asset.ownershipType,
-            status: 'In Store',
-            condition: asset.condition,
-            riskLevel: asset.riskLevel,
-            [key]: value,
-          }),
-        );
-        await assert.rejects(() =>
-          domain.editAsset(req(admin, target.version), target.id, {
-            reason: 'Bypass attempt',
-            [key]: value,
-          }),
-        );
-      }
-      await finance.submit(req(admin, target.version), target.id, {
-        reason: 'Finance entry requested',
+      });
+      await finance.submit(req(admin, edited.version), target.id, {
+        reason: 'Finance review requested',
       });
       let detail = await finance.detail(req(reviewer), target.id);
+      assert.equal(detail.purchaseCost, '9000.00');
+      for (const [key, value] of Object.entries({
+        purchaseCost: '999.00',
+        residualValue: '0',
+        insurancePolicyNumber: 'BYPASS',
+        insuranceExpiry: '2027-01-01',
+      })) {
+        await assert.rejects(
+          () =>
+            domain.editAsset(req(admin, detail.assetVersion), target.id, {
+              reason: 'Attempted bypass',
+              [key]: value,
+            }),
+          /Finance submission/,
+        );
+      }
       await assert.rejects(() =>
         finance.review(req(admin, detail.financeVersion), target.id, approval),
       );
@@ -500,7 +495,7 @@ describe(
           purchaseCost: '999',
           reason: 'Must not bypass review',
         }),
-        /Invalid fields/,
+        /Finance submission/,
       );
       let r = await call(
         reviewer,

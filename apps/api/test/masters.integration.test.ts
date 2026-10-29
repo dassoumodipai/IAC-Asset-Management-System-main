@@ -320,22 +320,7 @@ describe('Master Control PostgreSQL integration', { concurrency: false }, () => 
         label: `${tag} ${kind}`,
         reason,
       });
-      const asset = await service.createAsset(request(admin), {
-        ...base,
-        ...(field === 'depreciationMethod' ? {} : { [field]: ref.code }),
-      });
-      if (field === 'depreciationMethod') {
-        // Simulate an existing Finance-approved value for inactive-reference preservation.
-        await db.query('UPDATE assets SET depreciation_method=$2 WHERE id=$1', [
-          asset.id,
-          ref.code,
-        ]);
-        asset.depreciationMethod = ref.code;
-        await assert.rejects(
-          service.createAsset(request(admin), { ...base, depreciationMethod: ref.code }),
-          status(422),
-        );
-      }
+      const asset = await service.createAsset(request(admin), { ...base, [field]: ref.code });
       assert.equal(asset[field], ref.code);
       await service.updateMaster(request(admin, ref.version), kind, ref.code, {
         active: false,
@@ -374,13 +359,16 @@ describe('Master Control PostgreSQL integration', { concurrency: false }, () => 
       "INSERT INTO reference_values(kind,code,label) VALUES('DEPRECIATION_METHOD',$1,$2)",
       [longCode, `${tag} legacy method`],
     );
-    let asset = await service.createAsset(request(admin), base);
-    await db.query('UPDATE assets SET depreciation_method=$2 WHERE id=$1', [asset.id, longCode]);
+    let asset = await service.createAsset(request(admin), {
+      ...base,
+      depreciationMethod: longCode,
+    });
     await service.updateMaster(request(admin, 1), 'DEPRECIATION_METHOD', longCode, {
       active: false,
       reason,
     });
     asset = await service.editAsset(request(admin, asset.version), asset.id, {
+      depreciationMethod: longCode,
       description: 'Legacy full editor submission',
       reason,
     });

@@ -96,7 +96,7 @@ export function FinanceQueue() {
     <>
       <PageTitle
         title="Finance review"
-        description="Registrars submit asset records. A separate Finance reviewer enters and approves financial details."
+        description="Registrars submit asset records. A separate Finance reviewer checks and approves the entered financial details."
         action={
           <Link className="button secondary" to="/executive">
             Executive overview
@@ -554,9 +554,8 @@ function FinanceRecord({ asset: a }: { asset: FinanceAsset }) {
           ) : hasRole(user, 'ADMIN') ? (
             <form className="form-stack" onSubmit={(e) => void submit(e)}>
               <p>
-                Finance enters financial values after submission. Submit the current asset version
-                for independent Finance review. Approved records may be submitted again for an
-                amendment.
+                Submit the entered financial draft and current asset version for independent Finance
+                review. Approved records may be submitted again for an amendment.
               </p>
               <Field label="Submission reason" htmlFor="submission-reason">
                 <textarea
